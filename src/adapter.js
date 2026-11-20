@@ -37,8 +37,8 @@ export const ROUTE_REGION = 'get-it-for-free-region'
 
 /** Group headings — the only strings the picker shows as a section title. */
 export const ROUTE_LABELS = {
-  [ROUTE_MAIN]: 'Get It For Free',
-  [ROUTE_REGION]: 'Get It For Free · 地区受限',
+  [ROUTE_MAIN]: '免费渠道',
+  [ROUTE_REGION]: '免费渠道 · 地区受限',
 }
 
 const STYLE_FOR_WIRE = { chat: 'chat', responses: 'flat', messages: 'claude' }

@@ -37,15 +37,17 @@ window.__ModuleLoader__.load({
     // ── copy ──────────────────────────────────────────────────────────────────
     const DICT = {
       zh: {
-        'meta.title': 'Get It For Free',
+        'meta.title': '免费渠道',
         'meta.description': '把你自己的免费/签到型大模型账号接进 DeepSeek Harness：登录一次，模型以普通 provider 出现在选择器里，并附 Token 看板与 OpenAI 兼容转发端口。',
         'ann.pitch': '把你已有的免费账号接进 dsh：华为云 CodeArts、CodeBuddy / WorkBuddy、Qoder、MiMo、豆包工作这些都支持，登录一次之后它们的模型就以普通 provider 出现在选择器里。插件本身不提供免登录的中转。',
-        nav: 'Get It For Free',
-        title: 'Get It For Free',
+        nav: '免费渠道',
+        title: '免费渠道',
         refresh: '刷新清单',
         reprobe: '重新探测可用性',
         probing: '探测中…',
         loading: '正在加载…',
+        'dock.balance': '可用积分',
+        'dock.balanceHint': '当前模型所属渠道的剩余积分（该渠道所有账号合计），每 5 分钟自动刷新',
         loadFailed: '无法连接插件后端',
         retry: '重试',
         'state.available': '可用',
@@ -263,7 +265,7 @@ window.__ModuleLoader__.load({
         'ann.n1': '两个新模型已通过 EAC 渠道上线，由 OpenCode 免费车道转发：DeepSeek V4.1 Flash Free 与 GLM 5.3 Flash Free。',
         'ann.n2': '它们排在 EAC 模型页最前面，带红色 NEW / 爆 徽标和「高速」标签，一眼就能找到。',
         'ann.n3': '两个模型都真实支持思考档位（低 / 高 / 最大），DeepSeek 还能关闭思考；档位直接下发到上游，不是提示词。',
-        'ann.s1': '在输入框的模型选择器里选 “Get It For Free” 分组下的任意模型。',
+        'ann.s1': '在输入框的模型选择器里选 “免费渠道” 分组下的任意模型。',
         'ann.s2': '需要更强推理时点开 Effort 档位；它是真实下发的输出预算，不是提示词。',
         'ann.s3': '想被其它本地工具调用：设置页 → 本地转发 → 启用，把 Base URL 和 Key 填进去。',
         'ann.s4': '地区受限模型会在你切换网络出口后自动重新归类，无需手动操作。',
@@ -591,7 +593,7 @@ window.__ModuleLoader__.load({
         'gw.relayKey': '中继密钥',
         'gw.rotate': '轮换',
         'gw.relayNote': '中继只放行模型接口（/v1/*），并要求携带中继密钥；局域网绑定意味着同网段的设备都能访问到这个端口。',
-        'gw.freeLaneNote': '免费车道（Get It For Free）自己的转发端口在「免费模型」页的「本地转发」分区。',
+        'gw.freeLaneNote': '免费车道（免费渠道）自己的转发端口在「免费模型」页的「本地转发」分区。',
         'gw.channelTitle': '本机 API 网关',
         'gw.channelSub': '把各渠道模型合成一个 OpenAI 兼容端点，给本机其它工具当 API key 用。',
         'gw.base': 'Base URL',
@@ -804,15 +806,17 @@ window.__ModuleLoader__.load({
         'gw.clientsModels': '可转发模型 {n} 个',
       },
       en: {
-        'meta.title': 'Get It For Free',
+        'meta.title': 'Free Channels',
         'meta.description': 'Your own free and check-in model accounts inside DeepSeek Harness: log in once, and their models show up as ordinary providers, with a token dashboard and an OpenAI-compatible local forward port.',
         'ann.pitch': 'Connect the free accounts you already have: Huawei Cloud CodeArts, CodeBuddy / WorkBuddy, Qoder, MiMo, Doubao and more. Log in once and their models appear in the picker as ordinary providers. The plugin itself is not a no-login relay.',
-        nav: 'Get It For Free',
-        title: 'Get It For Free',
+        nav: 'Free Channels',
+        title: 'Free Channels',
         refresh: 'Refresh roster',
         reprobe: 'Re-probe availability',
         probing: 'Probing…',
         loading: 'Loading…',
+        'dock.balance': 'Credits',
+        'dock.balanceHint': 'Remaining credits of the channel serving the current model (all its accounts), refreshed every 5 minutes',
         loadFailed: 'Cannot reach the plugin backend',
         retry: 'Retry',
         'state.available': 'Available',
@@ -1030,7 +1034,7 @@ window.__ModuleLoader__.load({
         'ann.n1': 'Two new models are live on the EAC lane, relayed from OpenCode’s free tier: DeepSeek V4.1 Flash Free and GLM 5.3 Flash Free.',
         'ann.n2': 'They lead the EAC models page, marked with a red NEW / 爆 badge and a “Fast” tag.',
         'ann.n3': 'Both expose real thinking levels (Low / High / Max), and DeepSeek can also switch thinking off; the level goes to the upstream as-is, not as a prompt hint.',
-        'ann.s1': 'Pick any model under the “Get It For Free” group in the composer’s model selector.',
+        'ann.s1': 'Pick any model under the “Free Channels” group in the composer’s model selector.',
         'ann.s2': 'For harder reasoning, open the Effort menu — it sends a real budget, not a prompt hint.',
         'ann.s3': 'To serve other local tools: Settings → Local forward → enable, then copy the base URL and key.',
         'ann.s4': 'Region-limited models reclassify themselves once your network egress changes.',
@@ -1358,7 +1362,7 @@ window.__ModuleLoader__.load({
         'gw.relayKey': 'Relay key',
         'gw.rotate': 'Rotate',
         'gw.relayNote': 'The relay forwards only the model routes (/v1/*) and demands the relay key; binding to the LAN means every device on the network can reach that port.',
-        'gw.freeLaneNote': 'The free lane (Get It For Free) has its own forward port under "Local forward" on the Free models page.',
+        'gw.freeLaneNote': 'The free lane (Free Channels) has its own forward port under "Local forward" on the Free models page.',
         'gw.channelTitle': 'Local API gateway',
         'gw.channelSub': 'One OpenAI-compatible endpoint over every channel model, usable as an API key by other local tools.',
         'gw.base': 'Base URL',
@@ -1906,7 +1910,7 @@ window.__ModuleLoader__.load({
 .ofm_tank.xl{width:264px;height:148px;border-radius:20px;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 12%),0 16px 40px rgb(0 0 0 / 14%)}
 .ofm_tank.xl .ofm_tankglass{border-radius:20px}
 /* ══ 渠道接入页 ════════════════════════════════════════════════════════ */
-.ofm_chanwrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.ofm_chanwrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
 .ofm_chan{position:relative;display:flex;flex-direction:column;gap:12px;padding:16px 17px 15px;border-radius:16px;border:1px solid var(--dsw-alias-border-l2);background:color-mix(in srgb,var(--dsw-alias-bg-layer-3) 78%,transparent);box-shadow:inset 0 1px 0 rgb(255 255 255 / 5%),0 1px 2px rgb(0 0 0 / 5%);overflow:hidden;transition:transform .22s cubic-bezier(.32,.72,0,1),box-shadow .24s ease,border-color .2s ease}
 .ofm_chan::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--chan-accent,var(--dsw-alias-state-business-primary)),transparent 78%);opacity:.95}
 .ofm_chan:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 rgb(255 255 255 / 8%),0 18px 40px rgb(0 0 0 / 15%);border-color:color-mix(in srgb,var(--chan-accent,var(--dsw-alias-state-business-primary)) 55%,transparent)}
@@ -1922,6 +1926,66 @@ window.__ModuleLoader__.load({
 .ofm_chanmeta{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
 .ofm_chanmeta b{color:var(--dsw-alias-label-secondary);font-weight:650;font-variant-numeric:tabular-nums}
 .ofm_chanacts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* ══ 卡片折叠 ══════════════════════════════════════════════════════════
+   收起态是一行紧凑条目：[箭头][logo 名称/机构] …… [状态] [余额]
+   展开态恢复成原卡片。只靠 data-ofm-folded 一个开关，九种卡片通用。 */
+.ofm_chanhead{cursor:pointer;user-select:none}
+.ofm_chanhead::before{content:"";width:6px;height:6px;flex:none;margin:0 4px 0 1px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg);opacity:.45;transition:transform .18s cubic-bezier(.32,.72,0,1)}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanhead::before{transform:rotate(-45deg)}
+
+/* 收起：整张卡变成一行，标题吃掉剩余宽度，指标行只留余额贴到最右 */
+.ofm_chan[data-ofm-folded="true"]{
+  flex-direction:row!important;
+  align-items:center;
+  gap:10px!important;
+  padding:9px 13px!important;
+  border-radius:11px!important;
+  box-shadow:none!important;
+  background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent)!important;
+  transition:border-color .18s ease,background .18s ease!important;
+}
+.ofm_chan[data-ofm-folded="true"]:hover{
+  transform:none!important;
+  box-shadow:none!important;
+  border-color:color-mix(in srgb,var(--chan-accent,var(--dsw-alias-state-business-primary)) 48%,transparent)!important;
+}
+.ofm_chan[data-ofm-folded="true"]>:not(.ofm_chanhead):not(.ofm_chanmeta){display:none!important}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanhead{flex:0 1 auto;min-width:0;gap:9px}
+.ofm_chan[data-ofm-folded="true"] .ofm_chanlogo{width:26px;height:26px;border-radius:8px;font-size:10.5px;box-shadow:none}
+.ofm_chan[data-ofm-folded="true"] .ofm_chanid b{font-size:13px;letter-spacing:-.1px}
+.ofm_chan[data-ofm-folded="true"] .ofm_chanid span{font-size:10.5px}
+.ofm_chan[data-ofm-folded="true"] .ofm_chanstate{padding:2px 9px;font-size:10.5px;background:transparent}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanmeta{
+  flex:0 0 auto;
+  margin:0 0 0 auto;padding:0;
+  gap:0;
+  justify-content:flex-end;
+  white-space:nowrap;
+  font-size:11px;
+}
+/* 收起时指标行只保留余额；没有余额能力的卡片整行隐藏，不留空档 */
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanmeta>span:not(.ofm_credittotal){display:none!important}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanmeta:not(:has(.ofm_credittotal)){display:none!important}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanmeta>.ofm_credittotal{color:var(--dsw-alias-label-tertiary)}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanmeta>.ofm_credittotal b{color:var(--dsw-alias-state-success-primary);font-size:11.5px}
+/* 收起态：× 放到余额右侧的最末位（绝对定位，不参与 flex 排队），
+   卡片右侧留出 34px 让它落脚，指标行右端随之让位。 */
+.ofm_chan[data-ofm-folded="true"]{padding-right:34px!important}
+.ofm_chan[data-ofm-folded="true"] .ofm_chanclose{
+  position:absolute!important;
+  right:9px!important;
+  top:50%!important;
+  margin:0!important;
+  transform:translateY(-50%)!important;
+  width:20px!important;height:20px!important;
+  font-size:13px!important;
+  border-radius:6px!important;
+}
+.ofm_chan[data-ofm-folded="true"]>.ofm_chanhead .ofm_chanstate{margin-left:auto}
+.ofm_root .ofm_chan[data-ofm-folded="true"]{padding-right:34px!important}
+/* 极简皮肤下也保持单行（它的 padding/gap 带 !important，这里压回来） */
+.ofm_root .ofm_chan[data-ofm-folded="true"]{padding:9px 13px!important;gap:10px!important;border-radius:11px!important}
+.ofm_root .ofm_chan[data-ofm-folded="true"]:hover{transform:none!important;box-shadow:none!important}
 /* 卡片右上角的「×」：把这张卡收起来。页面底部的「＋」负责加回来，
    两处都只动这一页的排列，不动账号与模型。 */
 .ofm_chanclose{flex:none;width:24px;height:24px;display:grid;place-items:center;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:15px;line-height:1;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}
@@ -2736,6 +2800,110 @@ window.__ModuleLoader__.load({
   font-size:11.5px!important;
 }
 .ofm_root .ofm_chan[data-state="off"] .ofm_chanstate .ofm_dot{background:var(--dsw-alias-label-secondary)!important;box-shadow:none!important}
+
+/* ══ 渠道卡排版统一 ════════════════════════════════════════════════════════
+   目标：标题一行、指标一行、按钮一行，三层节奏统一；收起/展开共用同一套
+   字号与间距，不再出现「每张卡长得都不一样」。放在样式表最后，压过极简皮肤。 */
+
+/* 卡片本体：内距与圆角统一，取消悬浮位移（列表页上下跳动很晃） */
+.ofm_root .ofm_chan{
+  padding:13px 14px 12px!important;
+  gap:9px!important;
+  border-radius:13px!important;
+  box-shadow:none!important;
+}
+.ofm_root .ofm_chan:hover{transform:none!important;box-shadow:none!important}
+
+/* 标题行：logo 缩到 30，名称 13，机构 10.5；右边留给状态与 × */
+.ofm_root .ofm_chanhead{gap:9px!important}
+.ofm_root .ofm_chanlogo{width:30px!important;height:30px!important;border-radius:9px!important;font-size:11px!important;box-shadow:none!important}
+.ofm_root .ofm_chan:hover .ofm_chanlogo{transform:none!important}
+.ofm_root .ofm_chanid{gap:1px!important}
+.ofm_root .ofm_chanid b{font-size:13px!important;font-weight:650!important;letter-spacing:-.1px!important;line-height:1.3}
+.ofm_root .ofm_chanid span{font-size:10.5px!important;line-height:1.3;color:var(--dsw-alias-label-tertiary)!important}
+.ofm_root .ofm_chanstate{padding:2px 8px!important;font-size:10.5px!important;font-weight:600!important;gap:5px!important}
+/* ── 输入框状态栏的积分胶囊（挂在 composer 行，与设置页样式互不影响） ── */
+.ofm-dockbal{display:inline-flex;align-items:baseline;gap:5px;font-size:11px;line-height:1.4;color:var(--dsw-alias-label-secondary);padding:2px 9px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1,currentColor);background:var(--dsw-alias-bg-layer-2,transparent);white-space:nowrap}
+.ofm-dockbal-label{color:var(--dsw-alias-label-tertiary)}
+.ofm-dockbal b{font-weight:650;color:#2ea043;font-variant-numeric:tabular-nums}
+.ofm-dockbal.err b{color:var(--dsw-alias-label-tertiary)}
+.ofm_root .ofm_chanclose{width:22px!important;height:22px!important;font-size:14px!important;border-radius:7px!important}
+
+/* 指标行：三项等距、基线对齐、数字用等宽，扫读时不跳 */
+.ofm_root .ofm_chanmeta{
+  display:flex!important;
+  gap:0!important;
+  flex-wrap:wrap;
+  align-items:baseline;
+  font-size:11px!important;
+  line-height:1.7;
+  color:var(--dsw-alias-label-tertiary)!important;
+}
+.ofm_root .ofm_chanmeta>span{
+  display:inline-flex;
+  align-items:baseline;
+  gap:4px;
+  white-space:nowrap;
+}
+.ofm_root .ofm_chanmeta>span+span::before{
+  content:"";
+  width:3px;height:3px;
+  margin:0 9px;
+  border-radius:50%;
+  background:currentColor;
+  opacity:.38;
+  transform:translateY(-2px);
+}
+.ofm_root .ofm_chanmeta b{font-size:11.5px!important;font-weight:650!important;color:var(--dsw-alias-label-secondary)!important}
+.ofm_root .ofm_chanmeta .ofm_credittotal b{color:var(--dsw-alias-state-success-primary)!important}
+
+/* 按钮行：主次分明，间距收紧，一行放不下自然换行 */
+.ofm_root .ofm_chanacts{gap:6px!important;row-gap:6px!important}
+.ofm_root .ofm_chanacts .ofm_btn{
+  padding:4px 10px!important;
+  font-size:11px!important;
+  font-weight:550!important;
+  line-height:1.5;
+  border-radius:7px!important;
+  background:transparent!important;
+}
+.ofm_root .ofm_chanacts .ofm_btn:hover:not(:disabled){
+  background:var(--dsw-alias-bg-layer-3)!important;
+  border-color:var(--dsw-alias-border-l2)!important;
+}
+/* 第一个是「添加账号 / 打开」这类主操作，给它一点存在感 */
+.ofm_root .ofm_chanacts .ofm_btn:first-child{
+  border-color:color-mix(in srgb,var(--chan-accent,var(--dsw-alias-state-business-primary)) 42%,transparent)!important;
+}
+.ofm_root .ofm_chanacts .ofm_foldtoggle{
+  font-size:10.5px!important;
+  padding:4px 0!important;
+  margin-left:auto;
+}
+.ofm_root .ofm_chanacts .ofm_foldtoggle:first-of-type{margin-left:auto}
+.ofm_root .ofm_foldtoggle svg{width:8px!important;height:8px!important;opacity:.7}
+
+/* 账号行：单行对齐，右侧操作不挤 */
+.ofm_root .ofm_acct{padding:6px 9px!important;gap:7px!important;border-radius:8px!important}
+.ofm_root .ofm_acctname{font-size:11.5px!important;font-weight:600!important;max-width:140px!important}
+.ofm_root .ofm_acctmeta{font-size:10px!important;opacity:.85}
+.ofm_root .ofm_creditbadge{font-size:10px!important;padding:1px 7px!important;font-weight:600!important}
+.ofm_root .ofm_minibtn{font-size:10.5px!important;padding:2px 7px!important;border-radius:6px!important}
+
+/* 折叠区与模型列表：更轻的分隔与行距 */
+.ofm_root .ofm_chanfold{padding-top:7px!important;gap:6px!important}
+.ofm_root .ofm_modellist{gap:3px!important;max-height:210px!important}
+.ofm_root .ofm_modelrow{padding:4px 7px!important;border-radius:6px!important;font-size:11px!important;gap:7px!important}
+.ofm_root .ofm_note{font-size:10.5px!important;line-height:1.6}
+
+/* 收起态：把上面这套收紧到一行（内距、圆角再小一档）。
+   右内距 34px 是给绝对定位的 × 留的落脚位，别被这条 shorthand 冲掉。 */
+.ofm_root .ofm_chan[data-ofm-folded="true"]{
+  padding:9px 34px 9px 13px!important;
+  gap:10px!important;
+  border-radius:11px!important;
+}
+
 `
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -4476,7 +4644,7 @@ function sameChannelTransport(left, right) {
           creditCapability ? h('span', { className: 'ofm_credittotal' },
             `${balanceLabel} `,
             h('b', null, balanceLoading ? '…' : balancesKnown
-              ? creditCapability.quota ? t('chan.credits.loaded').replace('{count}', String((balances ?? []).filter(row => Number.isFinite(row.balance?.total)).length)) : kilo(balancesTotal)
+              ? creditCapability.quota ? t('chan.credits.loaded').replace('{count}', String((balances ?? []).filter(row => Number.isFinite(row.balance?.total)).length)) : formatDockBalance(balancesTotal)
               : balances === undefined ? '…' : '—')) : null),
         h('div', { className: 'ofm_chanacts' },
           h('button', { type: 'button', className: 'ofm_btn', disabled: busy !== '' || !rpc, 'aria-busy': busy === 'add' ? 'true' : undefined, onClick: startLogin }, busy === 'add' ? '…' : t('chan.act.add')),
@@ -6530,6 +6698,133 @@ function sameChannelTransport(left, right) {
       })
     }
 
+    /**
+     * 卡片折叠：默认收起，点标题行展开/收起。
+     *
+     * 用事件委托 + data 属性，而不是逐张卡改组件——这一版渠道页有九种卡片
+     * （渠道 / 网关 / 中继 / 模型同步 / MiMo / CLI / 秒悟 …），逐张加折叠状态
+     * 必然改一处漏一处；统一在 DOM 上判断，新卡片自动获得这个能力。
+     * 收起时保留「指标行」，因为余额、账号数、模型数都在那一行里。
+     */
+    /**
+     * 输入框状态栏的积分读数。
+     *
+     * 数据走设置页那条已验证的通道：useChannelRpc(ctx) → credits.balances，
+     * 与渠道卡读到的是同一份余额，不自建 RPC、不做信封解析。
+     * 只显示「当前模型所属渠道」的数字：本插件模型按 provider 分组，选中哪个
+     * 渠道的模型，就显示那个渠道的余额；别的插件的模型不显示。
+     */
+    const OFM_DOCK_PROVIDERS = {
+      codearts: 'codearts', buddy: 'buddy', workbuddy: 'workbuddy',
+      lobsterai: 'lobsterai', qodercn: 'qodercn', trae: 'trae',
+      raccoon: 'raccoon', minimax: 'minimax', zcode: 'zcode',
+      loomy: 'loomy', gemini: 'gemini',
+      'get-it-for-free': 'get-it-for-free', 'get-it-for-free-region': 'get-it-for-free-region',
+      'codebuddy-cli': 'codebuddy-cli', mimo: 'mimo', doubao: 'doubao', meoo: 'meoo',
+    }
+
+    // 精确到整数（有多余小数才保留两位）：用户要的是「还剩 12,345」，不是一个 12K
+    function formatDockBalance(value) {
+      const n = Number(value)
+      if (!Number.isFinite(n)) return '—'
+      const rounded = Math.round(n * 100) / 100
+      return rounded.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+    }
+
+    function ComposerBalanceDock(props) {
+      const { t, ctx, useProjection } = props
+      const { rpc } = useChannelRpc(ctx)
+      const projection = typeof useProjection === 'function' ? useProjection('modelSelection') : undefined
+      const provider = (projection?.next ?? projection?.lastUsed)?.provider
+      const owned = typeof provider === 'string' && provider !== '' ? OFM_DOCK_PROVIDERS[provider] : undefined
+      const [state, setState] = useState({ total: 0, known: false, loading: true })
+      useEffect(() => {
+        if (!owned || typeof rpc !== 'function') return undefined
+        let alive = true
+        let inFlight = false
+        const load = async () => {
+          if (inFlight) return
+          inFlight = true
+          try {
+            const value = await rpc('credits.balances', { provider: owned }, 90_000)
+            const rows = Array.isArray(value?.accounts) ? value.accounts : []
+            const known = rows.some(row => Number.isFinite(row?.balance?.total))
+            const total = rows.reduce((sum, row) => sum + (Number.isFinite(row?.balance?.total) ? row.balance.total : 0), 0)
+            if (alive) setState({ total, known, loading: false })
+          } catch {
+            if (alive) setState(current => ({ ...current, loading: false, known: false }))
+          } finally { inFlight = false }
+        }
+        void load()
+        const timer = setInterval(() => { void load() }, 300_000)
+        return () => { alive = false; clearInterval(timer) }
+      }, [owned, rpc])
+      if (owned === undefined) return null
+      return h('span', {
+        className: `ofm-dockbal${state.loading || state.known ? '' : ' err'}`,
+        title: t('dock.balanceHint'),
+        'data-ofm-credits': owned,
+      },
+        h('span', { className: 'ofm-dockbal-label' }, t('dock.balance')),
+        h('b', null, state.loading ? '…' : state.known ? formatDockBalance(state.total) : '—'))
+    }
+
+    function installCardFolding() {
+      const FLAG = 'data-ofm-folded'
+      const sync = card => {
+        const head = card.querySelector(':scope > .ofm_chanhead')
+        if (head === null) return
+        if (head.getAttribute('role') !== 'button') {
+          head.setAttribute('role', 'button')
+          head.setAttribute('tabindex', '0')
+        }
+        head.setAttribute('aria-expanded', card.getAttribute(FLAG) === 'false' ? 'true' : 'false')
+      }
+      const mark = () => {
+        try {
+          for (const card of document.querySelectorAll('.ofm_chan')) {
+            if (!card.hasAttribute(FLAG)) card.setAttribute(FLAG, 'true')
+            sync(card)
+          }
+        } catch { /* DOM not ready */ }
+      }
+      const toggle = card => {
+        card.setAttribute(FLAG, card.getAttribute(FLAG) === 'true' ? 'false' : 'true')
+        sync(card)
+      }
+      mark()
+      let observer
+      try {
+        observer = new MutationObserver(mark)
+        observer.observe(document.body, { childList: true, subtree: true })
+      } catch { observer = undefined }
+      const onClick = event => {
+        const target = event.target
+        if (!(target instanceof Element)) return
+        if (target.closest('button,a,input,select,textarea')) return
+        const head = target.closest('.ofm_chanhead')
+        if (head === null) return
+        const card = head.closest('.ofm_chan')
+        if (card !== null) toggle(card)
+      }
+      const onKey = event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        const target = event.target
+        if (!(target instanceof Element) || !target.classList.contains('ofm_chanhead')) return
+        const card = target.closest('.ofm_chan')
+        if (card === null) return
+        event.preventDefault()
+        toggle(card)
+      }
+      document.addEventListener('click', onClick)
+      document.addEventListener('keydown', onKey)
+      return () => {
+        if (observer !== undefined) observer.disconnect()
+        document.removeEventListener('click', onClick)
+        document.removeEventListener('keydown', onKey)
+      }
+    }
+
     function apply(ctx) {
       const t = ctx.locale.bind(NS)
       ctx.effect(() => ctx.locale.register(NS, { zh: DICT.zh, en: DICT.en }), 'get-it-for-free: dictionaries')
@@ -6542,6 +6837,7 @@ function sameChannelTransport(left, right) {
         return () => style.remove()
       }, 'get-it-for-free: styles')
 
+      ctx.effect(() => installCardFolding(), 'get-it-for-free: card folding')
       installProviderLayout(ctx)
 
       // ── push subscription ───────────────────────────────────────────────────
@@ -6644,7 +6940,7 @@ function sameChannelTransport(left, right) {
             if (String(at) === seen) return
             try { window.localStorage?.setItem('ofm.reloadedAt', String(at)) } catch { /* ignore */ }
             showToast({
-              title: meta.version !== '' ? `Get It For Free ${meta.version}` : 'Get It For Free',
+              title: meta.version !== '' ? `${t('meta.title')} ${meta.version}` : t('meta.title'),
               body: t('reload.done').replace('{n}', String(meta.reloadCount ?? 0)),
               actions: [{ label: t('reload.refresh'), onClick: () => { try { window.location.reload() } catch { /* top-level navigation refused */ } } }],
               holdMs: 12000,
@@ -6654,11 +6950,25 @@ function sameChannelTransport(left, right) {
         return () => {}
       }, 'get-it-for-free: reload notice')
 
+      // 输入框积分读数：注册失败必须吞掉，不能影响其它插件的槽位。
+      // 照 dsh-connect-trae 的位置，挂在 input.right（composer 座）。
+      try {
+        ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
+          name: 'conversation.input.right',
+          id: 'get-it-for-free-credits-input',
+          order: 4,
+          locale: NS,
+          inject: () => ({ t, position: 'composer', ctx }),
+        }, ComposerBalanceDock))
+      } catch (error) {
+        console.error('[get-it-for-free] credits slot registration failed:', error)
+      }
+
       ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
         id: 'get-it-for-free',
         order: 35,
-        label: () => 'Get It For Free',
+        label: () => (String(document?.documentElement?.lang ?? '').toLowerCase().startsWith('zh') ? '免费渠道' : 'Free Channels'),
         locale: NS,
       }, props => h(SettingsPage, { ...props, locale: localeTag(ctx), ctx })))
 
