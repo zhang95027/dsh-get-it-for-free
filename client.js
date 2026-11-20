@@ -47,6 +47,15 @@ window.__ModuleLoader__.load({
         probing: '探测中…',
         loading: '正在加载…',
         'dock.balance': '可用积分',
+        'acct.export': '导出账号',
+        'acct.import': '导入账号',
+        'acct.hint': '导出文件含明文凭据，请只放在自己信任的位置',
+        'acct.exported': '账号已导出',
+        'acct.exportedBody': '{n} 个渠道账号已写入文件，另含 {f} 份本地账号文件',
+        'acct.exportFailed': '导出失败',
+        'acct.imported': '账号已导入',
+        'acct.importedBody': '写入 {n} 条凭据，索引共 {m} 条账号；刷新后生效',
+        'acct.importFailed': '导入失败',
         'dock.balanceHint': '当前模型所属渠道的剩余积分（该渠道所有账号合计），每 5 分钟自动刷新',
         loadFailed: '无法连接插件后端',
         retry: '重试',
@@ -816,6 +825,15 @@ window.__ModuleLoader__.load({
         probing: 'Probing…',
         loading: 'Loading…',
         'dock.balance': 'Credits',
+        'acct.export': 'Export accounts',
+        'acct.import': 'Import accounts',
+        'acct.hint': 'The export contains plain-text credentials; keep it somewhere you trust',
+        'acct.exported': 'Accounts exported',
+        'acct.exportedBody': '{n} channel accounts written, plus {f} local account files',
+        'acct.exportFailed': 'Export failed',
+        'acct.imported': 'Accounts imported',
+        'acct.importedBody': '{n} credentials written, {m} accounts indexed; refresh to apply',
+        'acct.importFailed': 'Import failed',
         'dock.balanceHint': 'Remaining credits of the channel serving the current model (all its accounts), refreshed every 5 minutes',
         loadFailed: 'Cannot reach the plugin backend',
         retry: 'Retry',
@@ -6040,6 +6058,48 @@ function sameChannelTransport(left, right) {
       // 模型开关一个都不动 —— 收起一张卡不等于退出登录。
       const [hiddenChannels, setHiddenChannels] = useState(undefined)
       const [adding, setAdding] = useState(false)
+
+      // 账号导入导出：把「索引 + 凭据」打成一份 JSON，换机器不用重新登录十几家。
+      // 导出文件里是明文凭据 —— 那一行提示就是给这件事看的。
+      const [accountBusy, setAccountBusy] = useState(false)
+      const importInput = useRef(null)
+      const exportAccounts = useCallback(async () => {
+        setAccountBusy(true)
+        try {
+          const bundle = await api('/accounts/export', { timeout: 45_000 })
+          const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = 'get-it-for-free-accounts-' + new Date().toISOString().slice(0, 10) + '.json'
+          anchor.click()
+          setTimeout(() => URL.revokeObjectURL(url), 3000)
+          showToast({
+            title: t('acct.exported'),
+            body: t('acct.exportedBody').replace('{n}', String(bundle?.channels?.length ?? 0)).replace('{f}', String(Object.keys(bundle?.files ?? {}).length)),
+          })
+        } catch (err) {
+          showToast({ title: t('acct.exportFailed'), body: String(err?.message ?? err).slice(0, 140), tone: 'warn' })
+        } finally { setAccountBusy(false) }
+      }, [t])
+      const importAccounts = useCallback(async event => {
+        const file = event?.target?.files?.[0]
+        if (event?.target !== undefined) event.target.value = ''
+        if (file === undefined) return
+        setAccountBusy(true)
+        try {
+          const bundle = JSON.parse(await file.text())
+          const result = await post('/accounts/import', bundle, 45_000)
+          showToast({
+            title: t('acct.imported'),
+            body: t('acct.importedBody').replace('{n}', String(result?.imported ?? 0)).replace('{m}', String(result?.accounts ?? 0)),
+            actions: [{ label: t('reload.refresh'), onClick: () => { try { window.location.reload() } catch { /* 顶层导航可能被拒 */ } } }],
+            holdMs: 15_000,
+          })
+        } catch (err) {
+          showToast({ title: t('acct.importFailed'), body: String(err?.message ?? err).slice(0, 140), tone: 'warn' })
+        } finally { setAccountBusy(false) }
+      }, [t])
       useEffect(() => {
         let alive = true
         api('/summary')
@@ -6194,6 +6254,18 @@ function sameChannelTransport(left, right) {
             h(Pill, { tone: auto.running === true ? 'warn' : auto.ranToday === true ? 'ok' : '' },
               auto.running === true ? t('chan.auto.running') : auto.ranToday === true ? t('chan.auto.ran') : t('chan.auto.off')),
             typeof auto.lastResult === 'string' && auto.lastResult !== '' ? h('span', { className: 'ofm_note', title: auto.lastResult }, t('chan.auto.last').replace('{result}', auto.lastResult.length > 60 ? `${auto.lastResult.slice(0, 60)}…` : auto.lastResult)) : null)),
+
+        h('div', { className: 'ofm_row' },
+          h(Button, { onClick: () => { void exportAccounts() }, disabled: accountBusy }, t('acct.export')),
+          h(Button, { onClick: () => importInput.current?.click(), disabled: accountBusy }, t('acct.import')),
+          h('input', {
+            ref: importInput,
+            type: 'file',
+            accept: 'application/json,.json',
+            style: { display: 'none' },
+            onChange: event => { void importAccounts(event) },
+          }),
+          h('span', { className: 'ofm_note' }, t('acct.hint'))),
         failed ? h('div', { className: 'ofm_callout ofm_error' },
           h('div', null, t('chan.pack.failed').replace('{reason}', pack.error ?? ''), h('div', { className: 'ofm_note' }, t('chan.pack.hint')))) : null,
         !available ? h('div', { className: 'ofm_callout' }, h('div', null, t('chan.rpc.unavailable'))) : null,

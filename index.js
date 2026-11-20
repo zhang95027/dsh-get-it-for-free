@@ -1296,7 +1296,8 @@ export function apply(ctx, config) {
     let stopped = false
     // CLI 通道要读同一批令牌：凭据服务在宿主里，这里把作用域里的那份留给它用。
     credentialsService = scoped.credentials
-    scoped.effect(() => () => { stopped = true; credentialsService = undefined }, 'get-it-for-free: channel pack')
+    accountCredentialService = scoped.credentials
+    scoped.effect(() => () => { stopped = true; credentialsService = undefined; accountCredentialService = undefined }, 'get-it-for-free: channel pack')
 
     // ── CodeArts 令牌自动续期 ────────────────────────────────────────────────
     // 渠道包只在 401 时才去续期，而华为这边令牌过期回的是
@@ -2333,6 +2334,16 @@ export function createApiRoutes(deps) {
     try {
       if (method === 'GET' && routePath === '/summary') {
         return send(200, buildSummary(deps))
+      }
+
+      // 账号导入导出：把「索引 + 凭据」打成一份 JSON，换机器不用重新登录十几家。
+      if (method === 'GET' && routePath === '/accounts/export') {
+        return send(200, await buildAccountBundle())
+      }
+      if (method === 'POST' && routePath === '/accounts/import') {
+        const body = await readJson(req)
+        const result = await importAccountBundle(body)
+        return send(result.ok === true ? 200 : 400, result)
       }
       // 用户在风险告知页按了「删除该插件并退出」：把本插件从这台机器上摘掉。
       // 先改清单（同步、可回滚），再回一个 200，然后交给一个 detach 的 shell
@@ -3420,6 +3431,171 @@ function publicSettings(settings, forwardInfo, egressInfo) {
       error: egressInfo?.error ?? '',
     },
   }
+}
+
+// ── 账号导入导出 ─────────────────────────────────────────────────────────────
+// 账号由两层组成：渠道包 state.json 里的索引（哪个 provider、哪条 credentialRef、
+// 昵称与开关），以及真正的凭据（宿主的 .credentials.yaml，按 ref 存放）。只搬索引
+// 等于搬一堆空壳，所以导出时把每条 ref 的凭据值一起取出来，导入时先备份再写回。
+// 插件自己另外落盘的几条账号文件（豆包 / 秒悟 / MiMo）一并打包。
+const ACCOUNT_BUNDLE_FORMAT = 'dsh-get-it-for-free/accounts'
+const ACCOUNT_BUNDLE_VERSION = 1
+/** <DSH_HOME> 下的账号文件白名单：不在表里的路径绝不写入。 */
+const ACCOUNT_BUNDLE_FILES = [
+  'get-it-for-free/doubao.json',
+  'get-it-for-free/meoo.json',
+  'get-it-for-free/meoo-web-state.json',
+  '.mimo-connect-auth.json',
+]
+/** 导入前的备份目标：索引、宿主凭据库，以及上面那几条文件。 */
+const ACCOUNT_BUNDLE_BACKUPS = ['channel-pack/state.json', '.credentials.yaml', ...ACCOUNT_BUNDLE_FILES]
+
+// 凭据服务在 ctx.inject 的作用域里，顶层 helper 拿不到 —— 由注入块往这两根线里写。
+let accountCredentialService
+let accountCredentialRefOf
+
+/** 把一个 ref 名翻译成宿主认的 CredentialRef；消息包不可用时退化为原名。 */
+async function credentialRefFor(name) {
+  if (accountCredentialRefOf === undefined) {
+    try { accountCredentialRefOf = (await import('@deepseek-ai/dsh-credentials')).credentialRef } catch { accountCredentialRefOf = null }
+  }
+  return accountCredentialRefOf === null ? name : accountCredentialRefOf(name)
+}
+
+async function readJsonFile(file) {
+  try { return JSON.parse(await fs.promises.readFile(file, 'utf8')) } catch { return undefined }
+}
+
+/** 导出：索引 + 每条 ref 的凭据 + 插件自己的账号文件。 */
+async function buildAccountBundle() {
+  const home = resolveDshHome()
+  const state = (await readJsonFile(path.join(home, 'channel-pack', 'state.json'))) ?? {}
+  const rows = Array.isArray(state.accounts) ? state.accounts : []
+  const service = accountCredentialService
+  const channels = []
+  const skipped = []
+  for (const row of rows) {
+    if (row === null || typeof row !== 'object') continue
+    const ref = typeof row.credentialRef === 'string' ? row.credentialRef : ''
+    const label = typeof row.id === 'string' && row.id !== '' ? row.id : ref
+    if (ref === '' || service === undefined) { skipped.push(label); continue }
+    let secret = ''
+    try {
+      const resolved = await service.resolve(await credentialRefFor(ref))
+      secret = typeof resolved?.value === 'string' ? resolved.value : ''
+    } catch { secret = '' }
+    if (secret === '') { skipped.push(label); continue }
+    channels.push({
+      id: label,
+      provider: typeof row.provider === 'string' ? row.provider : '',
+      nickname: typeof row.nickname === 'string' ? row.nickname : label,
+      enabled: row.enabled !== false,
+      refreshable: row.refreshable !== false,
+      credentialRef: ref,
+      secret,
+    })
+  }
+  const files = {}
+  for (const rel of ACCOUNT_BUNDLE_FILES) {
+    const value = await readJsonFile(path.join(home, rel))
+    if (value !== undefined) files[rel] = value
+  }
+  return {
+    format: ACCOUNT_BUNDLE_FORMAT,
+    version: ACCOUNT_BUNDLE_VERSION,
+    pluginVersion: version,
+    createdAt: new Date().toISOString(),
+    channels,
+    files,
+    skipped,
+  }
+}
+
+/** 导入前把会被覆盖的文件各留一份 .bak-<时间戳>：写坏了还能手工捞回来。 */
+async function backupAccountFiles(home) {
+  const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
+  const done = []
+  for (const rel of ACCOUNT_BUNDLE_BACKUPS) {
+    const source = path.join(home, rel)
+    try {
+      const text = await fs.promises.readFile(source, 'utf8')
+      await fs.promises.writeFile(source + '.bak-' + stamp, text, 'utf8')
+      done.push(rel + '.bak-' + stamp)
+    } catch { /* 文件本来就不存在，不用备份 */ }
+  }
+  return done
+}
+
+/** 导入：先备份，再写凭据，再合并索引，最后写插件自己的账号文件。 */
+async function importAccountBundle(body) {
+  if (body === null || typeof body !== 'object') return { ok: false, error: '需要一份账号包 JSON' }
+  if (body.format !== ACCOUNT_BUNDLE_FORMAT) return { ok: false, error: '不是本插件导出的账号包' }
+  const service = accountCredentialService
+  if (service === undefined) return { ok: false, error: '凭据服务未就绪，请稍后重试' }
+  const home = resolveDshHome()
+  const backups = await backupAccountFiles(home)
+  const incoming = Array.isArray(body.channels) ? body.channels : []
+  const importedRefs = new Set()
+  const skipped = []
+  for (const channel of incoming) {
+    if (channel === null || typeof channel !== 'object') continue
+    const ref = typeof channel.credentialRef === 'string' ? channel.credentialRef : ''
+    const secret = typeof channel.secret === 'string' ? channel.secret : ''
+    if (!/^[A-Z][A-Z0-9_]{2,80}$/.test(ref) || secret === '') { skipped.push(ref || String(channel.id ?? '?')); continue }
+    try {
+      await service.set(await credentialRefFor(ref), secret)
+      importedRefs.add(ref)
+    } catch { skipped.push(ref) }
+  }
+  const statePath = path.join(home, 'channel-pack', 'state.json')
+  const state = (await readJsonFile(statePath)) ?? { accounts: [] }
+  const byRef = new Map()
+  for (const entry of Array.isArray(state.accounts) ? state.accounts : []) {
+    if (entry !== null && typeof entry === 'object' && typeof entry.credentialRef === 'string') byRef.set(entry.credentialRef, entry)
+  }
+  const added = []
+  for (const channel of incoming) {
+    if (channel === null || typeof channel !== 'object') continue
+    const ref = typeof channel.credentialRef === 'string' ? channel.credentialRef : ''
+    const provider = typeof channel.provider === 'string' ? channel.provider : ''
+    if (!importedRefs.has(ref) || provider === '') continue
+    const existing = byRef.get(ref)
+    const id = typeof channel.id === 'string' && channel.id !== '' ? channel.id : ref.toLowerCase()
+    const previous = existing ?? {}
+    byRef.set(ref, {
+      ...previous,
+      id,
+      provider,
+      credentialRef: ref,
+      nickname: typeof channel.nickname === 'string' ? channel.nickname : id,
+      enabled: channel.enabled !== false,
+      refreshable: channel.refreshable !== false,
+      createdAt: typeof previous.createdAt === 'number' ? previous.createdAt : Date.now(),
+    })
+    added.push(ref)
+  }
+  const nextState = { ...state, accounts: [...byRef.values()] }
+  try {
+    await fs.promises.mkdir(path.dirname(statePath), { recursive: true })
+    const tmp = statePath + '.tmp'
+    await fs.promises.writeFile(tmp, JSON.stringify(nextState, null, 2), 'utf8')
+    await fs.promises.rename(tmp, statePath)
+  } catch (error) {
+    return { ok: false, error: '账号索引写入失败: ' + String(error?.message ?? error).slice(0, 160), backups }
+  }
+  const files = body.files !== null && typeof body.files === 'object' ? body.files : {}
+  const written = []
+  for (const rel of ACCOUNT_BUNDLE_FILES) {
+    const value = files[rel]
+    if (value === undefined || value === null) continue
+    const target = path.join(home, rel)
+    try {
+      await fs.promises.mkdir(path.dirname(target), { recursive: true })
+      await fs.promises.writeFile(target, JSON.stringify(value, null, 2), 'utf8')
+      written.push(rel)
+    } catch { skipped.push(rel) }
+  }
+  return { ok: true, imported: importedRefs.size, accounts: nextState.accounts.length, added: added.length, files: written, skipped, backups }
 }
 
 /**
