@@ -64,8 +64,6 @@ import { createCliLane, CLI_ROUTE } from './src/cli-lane.js'
 import { createModelSync } from './src/model-sync.js'
 import { createDoubao } from './src/doubao/index.js'
 import { DOUBAO_PROVIDER, createDoubaoAdapter } from './src/doubao/adapter.js'
-import { createResignBridge } from './src/resign-bridge.js'
-import { readBiliCompat, setBiliPassthrough } from './src/bili-config.js'
 import { sweepCodeArts } from './src/codearts-refresh.js'
 import { sweepQoderCheckin, QODER_CHECKIN_SCHEMA } from './src/qoder-checkin.js'
 import { uninstallPlugin, spawnDetachedRemoval } from './src/uninstall.js'
@@ -1047,6 +1045,8 @@ export function apply(ctx, config) {
         host: chanRelay?.host ?? (String(relay.host ?? '').trim() || '127.0.0.1'),
         port: chanRelay?.port ?? relay.port ?? 0,
         hasKey: typeof relay.key === 'string' && relay.key !== '',
+        // 用户手填的对外地址；空串表示按监听地址自动推算（页面负责拼）。
+        baseUrl: typeof relay.baseUrl === 'string' ? relay.baseUrl : '',
         error: chanRelayError,
       },
       gateway: {
@@ -1530,39 +1530,6 @@ export function apply(ctx, config) {
     clearInterval(doubaoCheckinTimer)
     clearTimeout(doubaoCheckinWarm)
   }, 'get-it-for-free: doubao daily checkin')
-  // ── 签名中转（给 billion-context 递凭据）────────────────────────────────────
-  // CodeArts 的签名盖住了请求体，bili 要压缩就得自己重签，重签就得知道是哪一号
-  // 账号的 AK/SK。它扫 <DSH_HOME>/jet-hub/state.json 找 provider==='codearts'
-  // 的条目，再按 credentialRef 去宿主凭据库取。我们只负责把账号镜像过去 ——
-  // 密钥本体不出这个进程之外的凭据库，这里落盘的是 ref 名。
-  const resign = createResignBridge({ logger })
-  // 默认不再自动镜像（3.0.42）。实测：凭据一旦递过去，bili 就对每个 CodeArts 请求
-  // 走自己的重签（日志：`[resign] re-sign arm active (sdk-hmac-sha256)`），而重签出来的
-  // 请求被华为云回了 502 —— 比原来的「原样放行」更糟。所以默认关，只在用户手动点
-  // 「同步」时写一次；要恢复自动，建一个空文件 ~/.dsh/get-it-for-free/resign-auto。
-  const resignAuto = (() => {
-    try { return fs.existsSync(path.join(os.homedir(), '.dsh', 'get-it-for-free', 'resign-auto')) } catch { return false }
-  })()
-  if (resignAuto) void resign.sync()
-
-  // ── 与 bili 的默认校正 ──────────────────────────────────────────────────────
-  // 这条链路和 billion-context 唯一稳定的组合是「原样放行」。bili 的默认判断是
-  // 「有凭据就自己重签」，而它重签出来的请求华为云必拒 —— 用户装了 bili 之后
-  // 华为云渠道整条不可用，报错还指向上游，看不出是 bili 动的手。所以启动时做
-  // 一次幂等校正：只在「bili 现在打算重签」这一种状态下改它，改前自动备份，
-  // 已经有别的状态就不去覆盖用户的选择。
-  try {
-    const compat = readBiliCompat()
-    // 只有 bili 的配置里确实写了这条签名方案（说明它真想管这个 scheme）才动它。
-    // 没写就等于 bili 压根不管这类请求，我们不去替它新建一段配置。
-    if (compat.present === true && compat.mode === 'resign' && compat.scheme !== null) {
-      const after = setBiliPassthrough({ enabled: true })
-      logger.info?.(`get-it-for-free: bili 原本会对华为云请求重签（上游不接受），已改成原样放行${after.backup === '' ? '' : `（备份 ${after.backup}）`}`)
-    }
-  } catch (error) {
-    logger.warn?.(`get-it-for-free: 校正 bili 配置失败（${error?.message ?? error}）`)
-  }
-
 
   const api = createApiRoutes({
     settings, stats, availability, catalog: () => modelRuntime.catalog, state,
@@ -1587,8 +1554,6 @@ export function apply(ctx, config) {
     modelSync,
     // 豆包工作：多账号凭据、额度、模型目录、每日签到。
     doubao,
-    // 签名中转：把 CodeArts 账号的 credentialRef 镜像给 bili，让它能重签。
-    resign,
     // ── the aggregate lane's settings surface ────────────────────────────────
     // The registry is static data; the configured half is the settings file with
     // every key masked. Writing one provider rebuilds the catalog and re-emits
@@ -1778,8 +1743,27 @@ export function apply(ctx, config) {
           if (!Number.isInteger(port) || port < 0 || port > 65535) throw httpError(400, 'port must be an integer between 0 and 65535')
           relay.port = port
         }
+        // 对外地址：和监听地址是两件事。监听 0.0.0.0 时，真正该给别人填的是
+        // 本机内网 IP 或域名，而不是 0.0.0.0；写死了那段就只能靠人手改。
+        // 空串 = 回到自动推算（监听地址 + 端口 + /v1）。
+        if (patch.baseUrl !== undefined) {
+          const raw = String(patch.baseUrl ?? '').trim().replace(/\/+$/, '')
+          if (raw === '') relay.baseUrl = ''
+          else {
+            let parsed
+            try { parsed = new URL(raw) } catch { throw httpError(400, 'baseUrl must be an absolute http(s) URL') }
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+              throw httpError(400, 'baseUrl must be an absolute http(s) URL')
+            }
+            relay.baseUrl = raw.slice(0, 300)
+          }
+        }
         settings.update({ chanGateway: { ...current, relay } })
         settings.flush()
+        // 上游那跳（渠道包自己的 loopback 网关）不在这里开关：这里是 apply() 的
+        // 闭包，拿不到 createApiRoutes 的 deps，硬写就是 ReferenceError；而走
+        // connection.rpc 在桌面端会挂起不返回。由页面在同一个动作里调用
+        // `gateway.setEnabled`（它走的是浏览器到 pack 的直连，已验证可用）。
         await syncChanRelay()
         return chanRelayStatus()
       },
@@ -2520,22 +2504,6 @@ export function createApiRoutes(deps) {
       if (method === 'POST' && routePath === '/doubao/login/cancel') {
         return send(200, deps.doubao.login.cancel())
       }
-      // ── 签名中转（billion-context 重签凭据）──────────────────────────────────
-      // 只看「有没有把 ref 递过去」，不看密钥本身：凭据永远是宿主凭据库解出来的。
-      if (method === 'GET' && routePath === '/resign/status') {
-        try {
-          return send(200, await deps.resign.status())
-        } catch (error) {
-          return send(500, { error: String(error?.message ?? error).slice(0, 300) })
-        }
-      }
-      if (method === 'POST' && routePath === '/resign/sync') {
-        try {
-          return send(200, await deps.resign.sync())
-        } catch (error) {
-          return send(500, { error: String(error?.message ?? error).slice(0, 300) })
-        }
-      }
       // ── CodeArts 令牌续期 ───────────────────────────────────────────────────
       // 华为过期回 400 APIG.0602，渠道包的 401 兜底够不到，所以插件自己按
       // expires_at 续。面板上的「立即续期」按钮打这个口，后台每 20 分钟也会自己跑。
@@ -2560,25 +2528,6 @@ export function createApiRoutes(deps) {
         try {
           const body = await readJson(req)
           return send(200, await deps.qoderCheckin({ force: body?.force === true }))
-        } catch (error) {
-          return send(500, { error: String(error?.message ?? error).slice(0, 300) })
-        }
-      }
-      // ── 与 bili 共存（华为云链路不压缩）──────────────────────────────────────
-      // CodeArts 的签名盖住请求体，bili 只能「重签后压缩」或「拒转发」；它的重签
-      // 实测过不了上游（补尾斜杠 + 给部分模型加 maas_type: benefit），所以唯一
-      // 稳的组合是原样放行 —— 这是 bili 自己的开关，我们只做受控写入。
-      if (method === 'GET' && routePath === '/bili/status') {
-        try {
-          return send(200, readBiliCompat())
-        } catch (error) {
-          return send(500, { error: String(error?.message ?? error).slice(0, 300) })
-        }
-      }
-      if (method === 'POST' && routePath === '/bili/passthrough') {
-        try {
-          const body = await readJson(req)
-          return send(200, setBiliPassthrough({ enabled: body?.enabled !== false }))
         } catch (error) {
           return send(500, { error: String(error?.message ?? error).slice(0, 300) })
         }
@@ -2981,7 +2930,7 @@ export function createApiRoutes(deps) {
         const patch = await readJson(req)
         const visibility = validateModelVisibility(patch)
         const current = deps.settings.get()
-        const next = sanitizeSettings({ ...current, ...pick(patch, ['enabled', 'exposeRegionModels', 'probeIntervalMinutes', 'defaultMaxTokens', 'announcementAck', 'feedUrl', 'feedPollMinutes', 'notifyOs', 'updateCheckHours', 'autoReloadWatch', 'riskAccepted', 'cliLaneEnabled']), ...visibility }, current)
+        const next = sanitizeSettings({ ...current, ...pick(patch, ['enabled', 'exposeRegionModels', 'probeIntervalMinutes', 'defaultMaxTokens', 'announcementAck', 'feedUrl', 'feedPollMinutes', 'notifyOs', 'updateCheckHours', 'autoReloadWatch', 'riskAccepted', 'cliLaneEnabled', 'sidebarEntry']), ...visibility }, current)
         // 渠道卡片上的「×」：整张名单一起来，服务端不猜增量。只影响设置页里
         // 显示哪些卡，不动账号、令牌、模型开关——所以这里不需要任何清理动作。
         if (patch.hiddenChannels !== undefined) {
@@ -3382,6 +3331,8 @@ function publicSettings(settings, forwardInfo, egressInfo) {
     notifyOs: settings.notifyOs === true,
     updateCheckHours: settings.updateCheckHours ?? 6,
     autoReloadWatch: settings.autoReloadWatch === true,
+    /** 左侧栏要不要挂「免费渠道」入口；默认开（不写这个键的老用户也看到）。 */
+    sidebarEntry: settings.sidebarEntry !== false,
     reloadedAt: settings.reloadedAt ?? 0,
     reloadCount: settings.reloadCount ?? 0,
     tokenSaver: publicTokenSaver(settings.tokenSaver),

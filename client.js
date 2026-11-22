@@ -24,8 +24,12 @@ window.__ModuleLoader__.load({
     const module = { exports: {} }
     const exports = module.exports
     const React = require('react')
+    // 账号/模型对话框要挂到 document.body 上：卡片带 backdrop-filter（毛玻璃），
+    // 那会让卡片成为 position:fixed 后代的「包含块」，弹窗就会被关在卡片里。
+    const ReactDOM = require('react-dom')
 
     const { createElement: h, Fragment, useState, useEffect, useMemo, useRef, useCallback } = React
+    const { createPortal } = ReactDOM
 
     const NS = 'settings.getItForFree'
     const inject = ['slots', 'locale', 'modelDirectories']
@@ -47,6 +51,8 @@ window.__ModuleLoader__.load({
         probing: '探测中…',
         loading: '正在加载…',
         'dock.balance': '可用积分',
+        'sidebar.entry': '侧边栏入口',
+        'sidebar.entryHint': '在左侧栏显示「免费渠道」图标；关掉后仍可从设置进入',
         'acct.export': '导出账号',
         'acct.import': '导入账号',
         'acct.hint': '导出文件含明文凭据，请只放在自己信任的位置',
@@ -414,6 +420,7 @@ window.__ModuleLoader__.load({
         'chan.meta.models': '模型',
         'chan.act.add': '添加账号',
         'chan.hide': '把这张卡收起来',
+        'chan.fold.close': '关闭',
         'chan.hide.hint': '只是从这一页收起来：账号、令牌、模型都留着，随时加回来',
         'chan.empty.title': '未接入渠道',
         'chan.empty.sub': '还没登录账号的渠道，点开可以接进来',
@@ -427,6 +434,7 @@ window.__ModuleLoader__.load({
         'chan.act.test': '测试',
         'chan.act.delete': '移除',
         'chan.act.claim': '一键领取',
+        'chan.claim.unsupported': '这个渠道没有签到接口',
         'chan.fold.accounts': '账号',
         'chan.fold.models': '模型',
         'chan.noAccount': '还没有账号——点「添加账号」开始登录。',
@@ -555,25 +563,6 @@ window.__ModuleLoader__.load({
         'gw.keyNone': '尚未生成',
         'gw.keyNoneHint': '密钥文件还没生成，点「重新生成」立刻造一把（不需要先启动网关）。',
         'gw.copyConfig': '复制 base_url + Key',
-        'rs.title': '签名中转',
-        'rs.sub': 'CodeArts · 给 bili 递重签凭据',
-        'rs.accounts': '个账号可重签',
-        'rs.none': '没有可递的账号',
-        'rs.sync': '同步给 bili',
-        'rs.syncing': '同步中…',
-        'rs.done': '已同步，CodeArts 这条链路恢复压缩',
-        'rs.failed': '同步失败：{reason}',
-        'rs.last': '上次同步',
-        'rs.never': '还没同步过',
-        'rs.hint': '只递 credentialRef，密钥留在宿主凭据库；bili 每次请求都会重扫这个文件，同步完不用重启。',
-        'rs.bili.label': 'bili 对华为云：',
-        'rs.bili.passthrough': '原样放行（不压缩，可用）',
-        'rs.bili.resign': '会重签（实测过不了上游）',
-        'rs.bili.disabled': '已关掉 bili 的签名处理',
-        'rs.bili.unknown': '没找到 bili 配置',
-        'rs.bili.on': '设为原样放行',
-        'rs.bili.off': '交还 bili 重签',
-        'rs.bili.hint': '华为云的签名盖住请求体，bili 只能重签后压缩或拒转发。它的重签路径实测过不了上游（会补尾斜杠、给部分模型加 maas_type 头），所以这条链路建议原样放行：bili 照常记录，只是不压缩。想真压缩就把下面的本机网关打开，再把 127.0.0.1:8326 当成 OpenAI 兼容渠道加进 DSH：那一段是明文，bili 能压；签名留给网关自己做。',
         'ms.title': '模型同步',
         'ms.sub': '各渠道目录跟上游保持一致',
         'ms.last': '上次同步',
@@ -589,6 +578,8 @@ window.__ModuleLoader__.load({
         'ms.stale': '沿用上次',
         'ms.empty': '当前没有可同步的渠道',
         'ms.hint': '只读目录，不动你自己关掉的模型开关',
+        'ms.same': '本轮没有变化',
+        'ms.runFailed': '同步失败',
         'gw.models': '可转发模型',
         'gw.portNote': '端口可用环境变量 DSH_OPENAI_GATEWAY_PORT 调整。',
         'gw.relayTitle': '局域网转发（本插件中继）',
@@ -601,7 +592,20 @@ window.__ModuleLoader__.load({
         'gw.relayUrl': 'Base URL',
         'gw.relayKey': '中继密钥',
         'gw.rotate': '轮换',
-        'gw.relayNote': '中继只放行模型接口（/v1/*），并要求携带中继密钥；局域网绑定意味着同网段的设备都能访问到这个端口。',
+        'gw.relayNote': '只放行模型接口（/v1/*），并要求携带中继密钥；绑定 0.0.0.0 意味着同网段的设备都能访问这个端口。',
+        'gw.genKey': '生成 API Key',
+        'gw.keyNone': '未生成',
+        'gw.baseEdit': '更改',
+        'gw.baseSave': '保存',
+        'gw.baseReset': '恢复自动',
+        'gw.baseCancel': '取消',
+        'gw.baseHint': '对外地址：别人该填的 Base URL。留空则按监听地址自动推算',
+        'gw.proxyTitle': '免费渠道代理',
+        'gw.proxySub': '一个 OpenAI 兼容端点，给本机与局域网工具调用全部免费渠道',
+        'gw.proxySwitch': '启用代理',
+        'gw.proxyNote': '只放行模型接口（/v1/*）。开启时内部那跳会一起启动，无需单独配置。',
+        'gw.upstreamFailed': '上游网关没开起来，转发可能不通',
+        'gw.off': '已关闭',
         'gw.freeLaneNote': '免费车道（免费渠道）自己的转发端口在「免费模型」页的「本地转发」分区。',
         'gw.channelTitle': '本机 API 网关',
         'gw.channelSub': '把各渠道模型合成一个 OpenAI 兼容端点，给本机其它工具当 API key 用。',
@@ -825,6 +829,8 @@ window.__ModuleLoader__.load({
         probing: 'Probing…',
         loading: 'Loading…',
         'dock.balance': 'Credits',
+        'sidebar.entry': 'Sidebar entry',
+        'sidebar.entryHint': 'Show a Free Channels icon in the left sidebar; settings still opens this page when off',
         'acct.export': 'Export accounts',
         'acct.import': 'Import accounts',
         'acct.hint': 'The export contains plain-text credentials; keep it somewhere you trust',
@@ -1192,6 +1198,7 @@ window.__ModuleLoader__.load({
         'chan.meta.models': 'Models',
         'chan.act.add': 'Add account',
         'chan.hide': 'Put this card away',
+        'chan.fold.close': 'Close',
         'chan.hide.hint': 'Only hides the card on this page: accounts, tokens and models stay, and the ✚ brings it back',
         'chan.empty.title': 'Not connected yet',
         'chan.empty.sub': 'Channels with no account signed in — expand to connect one',
@@ -1205,6 +1212,7 @@ window.__ModuleLoader__.load({
         'chan.act.test': 'Test',
         'chan.act.delete': 'Remove',
         'chan.act.claim': 'Claim daily',
+        'chan.claim.unsupported': 'This channel has no check-in endpoint',
         'chan.fold.accounts': 'Accounts',
         'chan.fold.models': 'Models',
         'chan.noAccount': 'No account yet — press “Add account” to sign in.',
@@ -1333,25 +1341,6 @@ window.__ModuleLoader__.load({
         'gw.keyNone': 'Not generated yet',
         'gw.keyNoneHint': 'The key file is not created yet — press "Regenerate" to mint one now (the gateway does not need to be running).',
         'gw.copyConfig': 'Copy base_url + key',
-        'rs.title': 'Signature relay',
-        'rs.sub': 'CodeArts · hand bili a re-sign credential',
-        'rs.accounts': 'account(s) re-signable',
-        'rs.none': 'nothing to hand over',
-        'rs.sync': 'Sync to bili',
-        'rs.syncing': 'Syncing…',
-        'rs.done': 'Synced — compression is back on the CodeArts link',
-        'rs.failed': 'Sync failed: {reason}',
-        'rs.last': 'Last sync',
-        'rs.never': 'never synced',
-        'rs.hint': 'Only credentialRef is handed over; keys stay in the host credential store. bili rescans the file on every request, so no restart is needed.',
-        'rs.bili.label': 'bili on Huawei Cloud:',
-        'rs.bili.passthrough': 'byte-untouched passthrough (no compression, works)',
-        'rs.bili.resign': 're-signing (fails upstream in practice)',
-        'rs.bili.disabled': "bili's signature handling is off",
-        'rs.bili.unknown': 'no bili config found',
-        'rs.bili.on': 'Switch to passthrough',
-        'rs.bili.off': 'Hand back to bili re-sign',
-        'rs.bili.hint': "Huawei Cloud signs the request body, so bili can only re-sign-then-compress or refuse. Its re-signer fails upstream in practice (it appends a trailing slash and adds a maas_type header for some models), so passthrough is the stable choice: bili still records the turn, it just does not compress it. For real compression, turn the local gateway below on and add 127.0.0.1:8326 to DSH as an OpenAI-compatible provider: that hop is plain JSON, so bili can compress it, and the signature stays with the gateway.",
         'ms.title': 'Model sync',
         'ms.sub': 'Keep every channel catalog in step with upstream',
         'ms.last': 'Last sync',
@@ -1367,11 +1356,26 @@ window.__ModuleLoader__.load({
         'ms.stale': 'kept last snapshot',
         'ms.empty': 'no channel to sync right now',
         'ms.hint': 'read-only: your own model toggles are never touched',
+        'ms.same': 'no changes this round',
+        'ms.runFailed': 'Sync failed',
         'gw.models': 'Servable models',
         'gw.portNote': 'The port can be moved with the DSH_OPENAI_GATEWAY_PORT environment variable.',
         'gw.relayTitle': 'LAN relay (this plugin\'s)',
         'gw.relayHint': 'Re-expose the gateway on an address and port you choose: callers use the relay key below, and the gateway itself stays on the loopback.',
         'gw.relaySwitch': 'Enable LAN relay',
+        'gw.genKey': 'Generate API Key',
+        'gw.keyNone': 'none yet',
+        'gw.baseEdit': 'Change',
+        'gw.baseSave': 'Save',
+        'gw.baseReset': 'Auto',
+        'gw.baseCancel': 'Cancel',
+        'gw.baseHint': 'Public Base URL: what other machines should use. Empty means derive it from the bind address',
+        'gw.proxyTitle': 'Free channel proxy',
+        'gw.proxySub': 'One OpenAI-compatible endpoint for every free channel, local or on your LAN',
+        'gw.proxySwitch': 'Enable proxy',
+        'gw.proxyNote': 'Only model routes (/v1/*) are forwarded. The internal hop starts with it; nothing else to configure.',
+        'gw.upstreamFailed': 'Upstream gateway did not start; forwarding may fail',
+        'gw.off': 'Off',
         'gw.relayBind': 'Bind address',
         'gw.bindLocal': 'This machine only (127.0.0.1)',
         'gw.bindLan': 'LAN (0.0.0.0)',
@@ -1673,6 +1677,96 @@ window.__ModuleLoader__.load({
 .ofm_paneltitle{font-size:12px;font-weight:680;letter-spacing:.2px;color:var(--dsw-alias-label-secondary);display:flex;align-items:center;gap:8px}
 .ofm_paneltitle .ofm_sec_hint{font-weight:400;letter-spacing:0}
 .ofm_row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* ══ 侧边栏页面 ══════════════════════════════════════════════════════════
+ * 两条硬约束，别的都听它们的：
+ *   1. 卡片按原尺寸显示，一行多个供应商 —— 字号压到 10px 以下就没法读了，
+ *      宁可让网格在窄屏自己退成一列。
+ *   2. 这个容器自己滚 —— main 槽位给的是满高容器，不给 overflow 的话
+ *      内容超出部分直接被裁掉，滚轮怎么推都不动。
+ * 外框尺寸仍对齐 dsh-context：14/16 内边距、14 块间距。
+ */
+.ofm_side{display:flex;flex-direction:column;gap:14px;padding:14px 16px;box-sizing:border-box;min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+/* 侧栏这棵树没有 ofm_root 祖先，也就没吃到 .ofm_root * 那条 border-box 重置。
+ * 下面那句 .ofm_chan{height:100%} 在 content-box 下会变成「内容高 100% + 上下内距」，
+ * 比网格行高多出 31px，正好把行间的 14px 间距吃掉 —— 卡片就叠在一起了。 */
+.ofm_side,.ofm_side *{box-sizing:border-box}
+.ofm_side-card{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:12px;padding:14px 16px}
+.ofm_side-title{font-size:13px;font-weight:650;letter-spacing:-.1px}
+.ofm_side-note{margin:6px 0 0;font-size:11px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+/* 一行多个供应商：auto-fill 按可用宽度铺列，宽屏三到四张、窄屏自动退到一张。
+ * 320px 下限是卡片里「名称 + 状态 + 余额 + 关闭」这一行不换行的最小宽度。 */
+.ofm_side .ofm_page{gap:18px;flex:none}
+.ofm_side .ofm_chanwrap{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:stretch}
+/* 同一行等高：卡片高度由这一行最高的那张决定，不再各按内容长短各长各的。
+ * 内容短的那几张会在底部留白 —— 参差不齐比留白更晃眼。 */
+.ofm_side .ofm_chan{height:100%}
+/* 收起态例外：单行卡被拉成满高会变成一大块空白，让它自己缩回一行。 */
+/* 免费渠道代理独占一行：它是唯一一个「全渠道总口」，跟单个供应商并排会误导成
+ * 同级的第四条渠道。grid-column:1/-1 让它跨满整行，其余卡照旧多列。 */
+.ofm_side .ofm_chan[data-ofm-wide="true"]{grid-column:1/-1}
+.ofm_side .ofm_chan:hover{transform:none}
+/* 侧栏里卡片不再可收起：箭头和「可点击」的手指光标都一起撤掉，
+ * 否则图还在、点下去没反应，比没有更糟。 */
+.ofm_side .ofm_chan>.ofm_chanhead{cursor:default;user-select:text}
+.ofm_side .ofm_chan>.ofm_chanhead::before{display:none}
+/* ── 账号 / 模型对话框 ──────────────────────────────────────────────────── */
+.ofm_foldmodal{position:relative;width:min(680px,94vw);max-width:calc(100vw - 32px);max-height:calc(100vh - 80px);display:flex;flex-direction:column;overflow:hidden}
+/* 拖动中要能跟上手指：关掉过渡，指针事件也别被文本选中抢走 */
+.ofm_foldmodal-head{cursor:grab;touch-action:none;user-select:none}
+.ofm_foldmodal-head:active{cursor:grabbing}
+.ofm_foldmodal-body{flex:1;min-height:0}
+/* 右下角缩放手柄：两条斜线，不会被当成按钮 */
+.ofm_foldmodal-resize{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;touch-action:none;opacity:.55}
+.ofm_foldmodal-resize::before,.ofm_foldmodal-resize::after{content:"";position:absolute;right:3px;bottom:3px;width:8px;border-bottom:2px solid currentColor;transform:rotate(-45deg);transform-origin:right bottom}
+.ofm_foldmodal-resize::after{width:4px}
+.ofm_foldmodal-resize:hover{opacity:1}
+.ofm_foldmodal .ofm_modalhead{display:flex;align-items:baseline;gap:9px;padding-right:12px;position:relative}
+.ofm_foldmodal-title{font-size:14px;font-weight:700}
+.ofm_foldmodal-sub{font-size:11.5px;font-weight:500;color:var(--dsw-alias-label-tertiary)}
+.ofm_foldmodal-close{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:24px;height:24px;display:grid;place-items:center;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:16px;line-height:1;cursor:pointer;border-radius:7px}
+.ofm_foldmodal-close:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1)}
+.ofm_foldmodal-body{overflow:auto;max-height:min(64vh,560px);padding-bottom:18px}
+/* ── 免费渠道代理 ────────────────────────────────────────────────────────
+ * 版式：标题一行（状态靠右），下面三行「标签 / 值 / 操作」，开关行沉底。
+ * 之前把地址、模型数、key 和三颗按钮塞进同一个 flex 行，结果是按钮抢戏、
+ * 值被挤成小字；改成行式后每一行只讲一件事，操作贴着它要操作的那个值。
+ */
+.ofm_root .ofm_chan.ofm_proxy{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr);
+  gap:7px!important;
+  padding:11px 14px 10px!important;
+}
+/* 标题行右侧那串读数：比副标题再弱一档，不抢名字 */
+.ofm_proxymodels{color:var(--dsw-alias-label-secondary);font-weight:650}
+.ofm_proxy>.ofm_chanhead{grid-column:1;min-width:0}
+/* 值列表：等宽字体，长地址省略而不换行，复制按钮紧跟其后 */
+.ofm_proxyrows{display:flex;flex-direction:column;gap:4px;min-width:0;margin-top:1px}
+.ofm_proxyrow{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0}
+.ofm_proxylabel{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}
+.ofm_proxyval{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;
+  color:var(--dsw-alias-label-secondary);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:1px 6px;border-radius:5px;background:var(--dsw-alias-bg-layer-1);
+  border:1px solid var(--dsw-alias-border-l1);min-width:0;justify-self:start;max-width:100%;
+}
+.ofm_proxyval-none{color:var(--dsw-alias-label-tertiary);font-style:normal}
+/* Base URL 行内编辑：输入框和值框同一尺寸，切换时不跳高 */
+.ofm_proxyinput{
+  font:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;
+  width:100%;min-width:0;padding:1px 6px;border-radius:5px;
+  color:var(--dsw-alias-label-primary);
+  background:var(--dsw-alias-bg-layer-1);
+  border:1px solid var(--dsw-alias-state-business-primary);
+  outline:none;
+}
+.ofm_proxyactions{display:inline-flex;gap:4px;flex-wrap:nowrap;justify-self:end}
+/* 开关行：和值列表左对齐，不再甩到卡的最右边 */
+.ofm_proxy>.ofm_chanacts{grid-column:1;justify-content:flex-start;gap:6px!important;margin-top:1px}
+.ofm_proxy>.ofm_note{grid-column:1;margin:0}
+.ofm_proxy>.ofm_proxynote{display:none}
+/* 收起态右侧留 34px 给关闭按钮，别被后面的 padding 顶掉 */
 /* ══ 请求热度图 ════════════════════════════════════════════════════════ */
 .ofm_heat{display:grid;grid-auto-flow:column;grid-auto-columns:12px;grid-template-rows:repeat(7,12px);justify-content:start;gap:2px;overflow-x:auto;padding:2px 0 6px}
 .ofm_cell{width:12px;height:12px;border-radius:3.5px;background:var(--dsw-alias-bg-layer-1);outline:1px solid var(--dsw-alias-border-l1);outline-offset:-1px;transition:transform .14s ease,background .3s ease}
@@ -1708,7 +1802,10 @@ window.__ModuleLoader__.load({
 .ofm_btn:disabled{opacity:.45;cursor:default;box-shadow:none;transform:none}
 .ofm_btn.primary{background:linear-gradient(180deg,color-mix(in srgb,var(--dsw-alias-state-business-primary) 88%,#fff),var(--dsw-alias-state-business-primary));border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary) 82%,#000);color:var(--dsw-alias-label-on-accent,#fff);box-shadow:inset 0 1px 0 rgb(255 255 255 / 18%),0 2px 8px color-mix(in srgb,var(--dsw-alias-state-business-primary) 32%,transparent)}
 .ofm_btn.primary:hover:not(:disabled){background:linear-gradient(180deg,var(--dsw-alias-state-business-primary),color-mix(in srgb,var(--dsw-alias-state-business-primary) 88%,#000));border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 1px 0 rgb(255 255 255 / 20%),0 4px 14px color-mix(in srgb,var(--dsw-alias-state-business-primary) 42%,transparent)}
-.ofm_btn.ghost{background:transparent;box-shadow:none;border-color:transparent;color:var(--dsw-alias-label-secondary)}
+/* ghost 只表示「次要」：不着色、不加阴影，但**保留边框**。
+ * 原来这里写的是 border-color:transparent，于是同一行里实心按钮有框、
+ * ghost 按钮没框，看起来只有第一个能点。 */
+.ofm_btn.ghost{background:transparent;box-shadow:none;border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}
 .ofm_btn.ghost:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 80%,transparent);border-color:var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary)}
 .ofm_minibtn{font:inherit;font-size:11px;font-weight:540;padding:3px 9px;border-radius:8px;border:1px solid color-mix(in srgb,var(--dsw-alias-border-l2) 85%,transparent);background:color-mix(in srgb,var(--dsw-alias-bg-layer-3) 70%,transparent);color:var(--dsw-alias-label-secondary);cursor:pointer;transition:transform .12s ease,border-color .16s ease,color .16s ease,background .16s ease,opacity .16s ease}
 .ofm_minibtn:hover:not(:disabled){border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary) 60%,transparent);color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 7%,transparent);transform:translateY(-1px)}
@@ -2002,7 +2099,7 @@ window.__ModuleLoader__.load({
 .ofm_chan[data-ofm-folded="true"]>.ofm_chanhead .ofm_chanstate{margin-left:auto}
 .ofm_root .ofm_chan[data-ofm-folded="true"]{padding-right:34px!important}
 /* 极简皮肤下也保持单行（它的 padding/gap 带 !important，这里压回来） */
-.ofm_root .ofm_chan[data-ofm-folded="true"]{padding:9px 13px!important;gap:10px!important;border-radius:11px!important}
+.ofm_root .ofm_chan[data-ofm-folded="true"]{padding:9px 13px!important;gap:10px!important;border-radius:18px!important}
 .ofm_root .ofm_chan[data-ofm-folded="true"]:hover{transform:none!important;box-shadow:none!important}
 /* 卡片右上角的「×」：把这张卡收起来。页面底部的「＋」负责加回来，
    两处都只动这一页的排列，不动账号与模型。 */
@@ -2094,7 +2191,10 @@ window.__ModuleLoader__.load({
 .ofm_chan[data-state="idle"]::before{background:linear-gradient(90deg,var(--dsw-alias-state-warning-primary,#f0a441),transparent);opacity:.6}
 .ofm_chan[data-state="off"]::before{background:linear-gradient(90deg,var(--dsw-alias-label-tertiary),transparent);opacity:.5}
 /* 按钮：异步进行中显示内联 spinner（aria-busy 锚点，文字仍保留占位避免布局跳动） */
-.ofm_btn[aria-busy="true"]{position:relative;color:transparent !important;pointer-events:none}
+/* 按钮上的 spinner 已停用：所有刷新都走静默，按钮文字不该在自己转圈。
+ * 文字保留原样（不再替换成「…」或「同步中…」），只挡住重复点击。 */
+.ofm_btn[aria-busy="true"]{pointer-events:none;color:inherit !important}
+.ofm_btn[aria-busy="true"]::after{display:none !important}
 .ofm_btn[aria-busy="true"]::after{content:"";position:absolute;left:50%;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;border:2px solid color-mix(in srgb,currentColor 30%,var(--dsw-alias-label-secondary));border-top-color:var(--dsw-alias-label-primary);animation:ofm-btn-spin .7s linear infinite}
 @keyframes ofm-btn-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.ofm_root *,.ofm_root *::before,.ofm_root *::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}}
@@ -2655,19 +2755,30 @@ window.__ModuleLoader__.load({
 .ofm_root .ofm_hero{background: var(--dsw-alias-bg-layer-1, transparent) !important}
 
 /* ── 4. 按钮：方、平、细边；主按钮用前景色反转，不引入彩色 ─────────── */
+/* 边框色用 l2：l1 在这套主题里和卡片底色几乎同色，画出来等于没有边框。
+ * 这一段带 !important 且排在 .ofm_btn.ghost 之后，所以它会赢 —— ghost 想保住
+ * 自己的边框只能在这里让步，不能靠前面那条规则「更具体」。 */
 .ofm_root .ofm_btn,
 .ofm_root .ofm_minibtn,
 .ofm_root .ofm_seg,
 .ofm_root .ofm_foldtoggle{
   background: transparent !important;
-  border: 1px solid var(--dsw-alias-border-l1, currentColor) !important;
+  border: 1px solid var(--dsw-alias-border-l2, currentColor) !important;
   border-radius: 4px !important;
   box-shadow: none !important;
   color: var(--dsw-alias-label-primary) !important;
   transform: none !important;
 }
+/* ghost 现在是「次要但仍是按钮」：底色透明，边框照留 */
+.ofm_root .ofm_btn.ghost{border-color: var(--dsw-alias-border-l2) !important}
 .ofm_root .ofm_minibtn,
 .ofm_root .ofm_foldtoggle{border: 0 !important; padding-left: 0 !important; padding-right: 0 !important}
+/* 账号 / 模型现在是按钮（点开弹窗），不再是「展开那一行」的开关：
+ * 给它们正常的按钮外观，并靠右边的位置告诉人这是入口而不是状态文字。 */
+.ofm_root .ofm_chanacts .ofm_foldbtn{margin-left:auto}
+.ofm_root .ofm_chanacts .ofm_foldbtn+.ofm_foldbtn{margin-left:0}
+.ofm_root .ofm_foldbtn{padding:4px 11px!important;border-radius:8px!important;border:1px solid var(--dsw-alias-border-l1)!important}
+.ofm_root .ofm_foldbtn:hover:not(:disabled){border-color:color-mix(in srgb,var(--dsw-alias-label-tertiary) 55%,transparent)!important}
 .ofm_root .ofm_btn:hover:not(:disabled),
 .ofm_root .ofm_minibtn:hover:not(:disabled){
   background: var(--dsw-alias-bg-layer-1, transparent) !important;
@@ -2734,7 +2845,10 @@ window.__ModuleLoader__.load({
 .ofm_root,.ofm_root *{animation:none!important;transition:none!important;transform:none!important;box-shadow:none!important;text-shadow:none!important;backdrop-filter:none!important;filter:none!important;background-image:none!important}
 .ofm_root{gap:10px!important;font-size:12.5px!important;max-width:960px!important}
 .ofm_root::before,.ofm_aurora{display:none!important}
-.ofm_hero,.ofm_panel,.ofm_card,.ofm_chan,.ofm_modal,.ofm_callout,.ofm_glass,.ofm_seg{border-radius:4px!important;border:1px solid var(--dsw-alias-border-l1)!important;background:var(--dsw-alias-bg-layer-1)!important}
+/* 圆角：这一条原来把 .ofm_chan 也压成 4px，卡片看起来就是直角块。
+ * 现在把渠道卡从这条里摘出来单独给 18px；其余容器保持 4px 的极简外观。 */
+.ofm_hero,.ofm_panel,.ofm_card,.ofm_modal,.ofm_callout,.ofm_glass,.ofm_seg{border-radius:4px!important;border:1px solid var(--dsw-alias-border-l1)!important;background:var(--dsw-alias-bg-layer-1)!important}
+.ofm_chan{border-radius:18px!important;border:1px solid var(--dsw-alias-border-l1)!important;background:var(--dsw-alias-bg-layer-1)!important;overflow:hidden!important}
 .ofm_chanlogo{border-radius:3px!important;border:1px solid var(--dsw-alias-border-l1)!important;background:var(--dsw-alias-bg-layer-2)!important;color:var(--dsw-alias-label-secondary)!important;font-weight:600!important;font-size:11px!important}
 .ofm_chanlogo img{display:none!important}
 .ofm_chan{border-color:var(--dsw-alias-border-l1)!important}
@@ -2827,7 +2941,8 @@ window.__ModuleLoader__.load({
 .ofm_root .ofm_chan{
   padding:13px 14px 12px!important;
   gap:9px!important;
-  border-radius:13px!important;
+  /* 圆角调大：13px 在深色底上几乎看不出是圆角，卡片像一块标记；18px 才读得出「卡」。 */
+  border-radius:18px!important;
   box-shadow:none!important;
 }
 .ofm_root .ofm_chan:hover{transform:none!important;box-shadow:none!important}
@@ -2877,21 +2992,33 @@ window.__ModuleLoader__.load({
 
 /* 按钮行：主次分明，间距收紧，一行放不下自然换行 */
 .ofm_root .ofm_chanacts{gap:6px!important;row-gap:6px!important}
+/* 动作行里的按钮统一一种长相：一样的内距、一样的 1px 边框、一样的底色。
+ * 之前「添加账号」是实心按钮、其余是 ghost（边框透明），只有它带框，看着像
+ * 只有一个按钮可用；再叠一条 :first-child 的强调色边框，三种边缘同时存在。
+ * 这一行里没有主次——都是同级的次要操作，谁也不该比谁显眼。 */
+/* 动作行只统一尺寸，不再改边框/底色：边框由 .ofm_btn 与 .ofm_btn.ghost 决定，
+ * 这里再写一遍只会让「哪条规则赢」变成谜。 */
+/* 底色必须在这里清掉：第 2870 行那条 .ofm_root .ofm_btn 规则给每个按钮都上了
+ * 实心底，把 .ofm_btn.ghost 的 transparent 盖掉了 —— 于是「添加账号」（plain）
+ * 和其余（ghost）看起来仍是两种。这一行里全部拉平。 */
 .ofm_root .ofm_chanacts .ofm_btn{
+  background:transparent!important;
+  /* 文字色也要拉平：plain 的 .ofm_btn 是 label-primary（亮白），ghost 是
+   * label-secondary（灰）—— 底色清掉之后，这是「添加账号」看起来仍是主按钮的
+   * 最后原因。三种属性（底色、边框、文字色）必须一起统一，少一个就露馅。 */
+  color:var(--dsw-alias-label-secondary)!important;
+  border-color:var(--dsw-alias-border-l2)!important;
   padding:4px 10px!important;
   font-size:11px!important;
   font-weight:550!important;
   line-height:1.5;
   border-radius:7px!important;
-  background:transparent!important;
+}
+.ofm_root .ofm_chanacts .ofm_btn:hover:not(:disabled){
+  color:var(--dsw-alias-label-primary)!important;
 }
 .ofm_root .ofm_chanacts .ofm_btn:hover:not(:disabled){
   background:var(--dsw-alias-bg-layer-3)!important;
-  border-color:var(--dsw-alias-border-l2)!important;
-}
-/* 第一个是「添加账号 / 打开」这类主操作，给它一点存在感 */
-.ofm_root .ofm_chanacts .ofm_btn:first-child{
-  border-color:color-mix(in srgb,var(--chan-accent,var(--dsw-alias-state-business-primary)) 42%,transparent)!important;
 }
 .ofm_root .ofm_chanacts .ofm_foldtoggle{
   font-size:10.5px!important;
@@ -4249,11 +4376,156 @@ function sameChannelTransport(left, right) {
       return ago(entry.expiresAt, t.locale)
     }
 
+    /**
+     * 账号 / 模型的选择框。
+     *
+     * 原来这两处是「点一下、卡片长高、内容从下面挤出来」：一张卡在网格里被撑开，
+     * 同一行的邻居跟着变高，下面的卡全往下挪 —— 想关掉还得滚回去找那个按钮。
+     * 现在改成居中的对话框：点开浮在上面，关掉卡片纹丝不动。
+     *
+     * 用 `.ofm_scrim` 这一套现成的遮罩样式（登录弹窗也在用），点遮罩或 Esc 关闭。
+     */
+    /**
+     * 账号 / 模型对话框。
+     *
+     * 可拖动、可缩放：账号列表和模型列表都是「一次要看十几行」的东西，固定
+     * 560px 宽、64vh 高的框每次都逼着人滚动。标题栏按住能拖，右下角能拉，
+     * 尺寸和位置在本次会话里记住（关掉再开还是上次那个大小）。
+     *
+     * 约束都在拖拽/缩放的回调里做，不靠 CSS 兜底：宽度 360 起、不许超出视口，
+     * 位置夹在视口内 —— 拉飞了还有得救，但拉不飞。
+     */
+    const foldModalGeometry = { width: 0, height: 0, x: 0, y: 0 }
+    function FoldModal({ title, subtitle, onClose, children }) {
+      const [size, setSize] = useState(() => ({
+        width: foldModalGeometry.width, height: foldModalGeometry.height,
+      }))
+      const [pos, setPos] = useState({ x: foldModalGeometry.x, y: foldModalGeometry.y })
+      const frame = useRef(null)
+      useEffect(() => {
+        foldModalGeometry.width = size.width
+        foldModalGeometry.height = size.height
+        foldModalGeometry.x = pos.x
+        foldModalGeometry.y = pos.y
+      }, [size, pos])
+      useEffect(() => {
+        const onKey = event => { if (event.key === 'Escape') onClose() }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+      }, [onClose])
+
+      // 一条通用的指针拖拽：按住 handle 移动，松开就结束。用 pointer events
+      // 而不是 mouse，触屏和触控板走同一条代码。
+      const swallowClick = useRef(false)
+      const beginDrag = mode => event => {
+        if (event.button !== undefined && event.button !== 0) return
+        const box = frame.current?.getBoundingClientRect()
+        if (box === undefined) return
+        event.preventDefault()
+        // 拖动立刻转成「绝对定位 + 固定左上角」，否则从居中布局切换会跳一下。
+        // 尺寸基准必须用「当前真实渲染尺寸」：首次拖拽时 size 还是 0（宽度由 CSS
+        // 的 min(680px,94vw) 决定），拿 0 当起点一拉就掉到 420 的最小值。
+        const start = {
+          x: event.clientX, y: event.clientY,
+          boxLeft: box.left, boxTop: box.top, boxWidth: box.width,
+          w: size.width > 0 ? size.width : box.width,
+          h: size.height > 0 ? size.height : box.height,
+        }
+        const move = ev => {
+          const dx = ev.clientX - start.x
+          const dy = ev.clientY - start.y
+          if (mode === 'move') {
+            const maxX = Math.max(0, window.innerWidth - start.boxWidth)
+            const maxY = Math.max(0, window.innerHeight - 48)
+            setPos({
+              x: Math.min(Math.max(0, start.boxLeft + dx), maxX),
+              y: Math.min(Math.max(0, start.boxTop + dy), maxY),
+            })
+            // 首次拖动顺带把当前真实尺寸固化下来：之后缩放从这儿接着算，
+            // 不会因为 size 仍是 0 而回落到最小值。
+            if (size.width === 0 || size.height === 0) setSize({ width: start.w, height: start.h })
+            return
+          }
+          setSize({
+            width: Math.min(Math.max(420, start.w + dx), window.innerWidth - 32),
+            height: Math.min(Math.max(260, start.h + dy), window.innerHeight - 80),
+          })
+        }
+        const up = () => {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          document.body.style.userSelect = ''
+          // 松手后浏览器还会派发一次 click（落在指针当前位置的元素上）。
+          // 先立起标记，让那次 click 被吞掉；下一帧若没来 click（纯点击不拖动），
+          // 标记也不会留到下一次真正的背景点击。
+          swallowClick.current = true
+          setTimeout(() => { swallowClick.current = false }, 0)
+        }
+        document.body.style.userSelect = 'none'
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      }
+
+      const style = {
+        width: size.width > 0 ? `${size.width}px` : undefined,
+        height: size.height > 0 ? `${size.height}px` : undefined,
+      }
+      const positioned = pos.x > 0 || pos.y > 0
+      if (positioned) {
+        style.position = 'fixed'
+        style.left = `${pos.x}px`
+        style.top = `${pos.y}px`
+        style.margin = '0'
+      }
+
+      // 挂到 body：不这么写，弹窗会留在卡片的层叠上下文里（见顶部 require 处的说明）。
+      // 拖拽/缩放时指针会移出弹窗，松手那一下浏览器仍会补一个 click，
+      // 而它的 target 是遮罩本身 —— 于是「拖一下就关掉了」。这里用一个标记
+      // 吃掉紧随其后的那一次 click：只有真正点在空白处的 click 才关窗。
+      const surface = h('div', {
+        className: 'ofm_scrim ofm_scrim-flat',
+        role: 'presentation',
+        onClick: event => {
+          if (event.target !== event.currentTarget) return
+          if (swallowClick.current) { swallowClick.current = false; return }
+          onClose()
+        },
+      },
+        h('div', {
+          ref: frame,
+          className: 'ofm_modal ofm_foldmodal',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': title,
+          style,
+        },
+          h('div', {
+            className: 'ofm_modalhead ofm_foldmodal-head',
+            // 标题栏整条都能拖；按钮和输入框不参与（见 beginDrag 的 button 判断）
+            onPointerDown: beginDrag('move'),
+          },
+            h('span', { className: 'ofm_foldmodal-title' }, title),
+            subtitle === undefined || subtitle === '' ? null : h('span', { className: 'ofm_foldmodal-sub' }, subtitle),
+            h('button', {
+              type: 'button', className: 'ofm_chanclose ofm_foldmodal-close',
+              'aria-label': 'close', onClick: onClose,
+            }, '×')),
+          h('div', { className: 'ofm_modalbody ofm_foldmodal-body' }, children),
+          h('span', {
+            className: 'ofm_foldmodal-resize',
+            title: 'resize',
+            'aria-hidden': 'true',
+            onPointerDown: beginDrag('resize'),
+          })))
+      return typeof document === 'undefined' ? surface : createPortal(surface, document.body)
+    }
+
     function ChannelCard(props) {
       const { channel, status, rpc, t, onError, onChanged, onRemove } = props
-      // 账号区默认展开。折叠着的时候，每行账号的「测试 / 刷新 / 停用 / 删除」全被
-      // 藏在里面，用起来就像这个渠道根本没有测试按钮——用户就是这么报的。
-      const [open, setOpen] = useState('accounts')
+      // 账号区默认收起：卡片先只摆概况（渠道名、账号数、模型数、余额、按钮行），
+      // 想管某个账号再点「账号 (n)」展开。登录/粘贴凭据这类动作会自己把它展开，
+      // 所以不用为了「找不到测试按钮」而常开（见 setOpen('accounts') 那几处）。
+      const [open, setOpen] = useState('')
       const [accounts, setAccounts] = useState(undefined)
       const [models, setModels] = useState(undefined)
       const [credits, setCredits] = useState(undefined)
@@ -4283,6 +4555,9 @@ function sameChannelTransport(left, right) {
       const balanceGeneration = useRef(0)
       const claimPending = useRef(false)
       const creditCapability = CHANNEL_CREDITS[channel.id]
+      // 「这个渠道能不能签到」和「有没有余额查询」是两件事：前者决定按钮能不能点，
+      // 后者决定指标行画不画余额。
+      const claimable = creditCapability?.claim === true
       // 端点选择器已经删掉：zcode 一律走国内 bigmodel 端点，不再读写偏好。
       const zcodeProvider = 'bigmodel'
       const loginAttempt = useRef(null)
@@ -4472,8 +4747,9 @@ function sameChannelTransport(left, right) {
         // 贴凭据：不跳转、不占 popup，直接把面板摆出来等用户交 Cookie / token。
         if (channel.login === 'paste') {
           setNotice('')
+          // 不自动弹出「账号」框：添加账号有自己的登录/粘贴弹窗，
+          // 再顺带把账号清单顶到前面，等于把用户没要的另一件事塞给他。
           setLogin({ paste: true, text: '', error: '', startedAt: Date.now() })
-          setOpen('accounts')
           return
         }
         if (loginAttempt.current && !loginAttempt.current.cancelled) return
@@ -4516,7 +4792,6 @@ function sameChannelTransport(left, right) {
             }
           } else { closeLoginPopup(attempt.popup); attempt.popup = null }
           setLogin({ accountId, url: typeof url === 'string' ? url : '', startedAt: Date.now() })
-          setOpen('accounts')
         } catch (error) {
           closeLoginPopup(attempt.popup)
           if (current()) onError(channel, error)
@@ -4626,8 +4901,14 @@ function sameChannelTransport(left, right) {
           const failed = (value?.results ?? []).filter(row => row.outcome?.kind === 'failed')
           const successText = t('chan.claim.result').replace('{count}', String(claimed)).replace('{credit}', String(credit))
           const failureText = t('chan.claim.failed').replace('{reason}', failed.map(row => row.outcome.message).join('；'))
-          setNotice(failed.length > 0 ? claimed > 0 ? `${successText}；${failureText}` : failureText
-            : claimed > 0 ? successText : t('chan.claim.none'))
+          // 结果走通知（toast），不留在卡片上：卡片是「现状」，一次领取的结果是
+          // 「刚发生的事」，留在那儿会一直占一行，直到下次点别的才消失。
+          showToast({
+            title: channel.name,
+            body: failed.length > 0 ? claimed > 0 ? `${successText}；${failureText}` : failureText
+              : claimed > 0 ? successText : t('chan.claim.none'),
+            tone: failed.length > 0 ? 'warn' : 'ok',
+          })
           void loadCredits(); void loadBalances(true)
         } catch (error) { onError(channel, error) } finally { claimPending.current = false; setBusy('') }
       }
@@ -4661,11 +4942,13 @@ function sameChannelTransport(left, right) {
           h('span', null, `${t('chan.meta.models')} `, h('b', null, modelsLabel)),
           creditCapability ? h('span', { className: 'ofm_credittotal' },
             `${balanceLabel} `,
-            h('b', null, balanceLoading ? '…' : balancesKnown
+            // 静默刷新：有旧值就一直显示旧值，新值到了直接换数字；
+            // 只有「从来没有过值」才显示占位符。
+            h('b', null, balancesKnown
               ? creditCapability.quota ? t('chan.credits.loaded').replace('{count}', String((balances ?? []).filter(row => Number.isFinite(row.balance?.total)).length)) : formatDockBalance(balancesTotal)
               : balances === undefined ? '…' : '—')) : null),
         h('div', { className: 'ofm_chanacts' },
-          h('button', { type: 'button', className: 'ofm_btn', disabled: busy !== '' || !rpc, 'aria-busy': busy === 'add' ? 'true' : undefined, onClick: startLogin }, busy === 'add' ? '…' : t('chan.act.add')),
+          h('button', { type: 'button', className: 'ofm_btn ghost', disabled: busy !== '' || !rpc, 'aria-busy': busy === 'add' ? 'true' : undefined, onClick: startLogin }, busy === 'add' ? '…' : t('chan.act.add')),
           accountsCount > 0 ? h('button', {
             type: 'button', className: 'ofm_btn ghost', disabled: busy !== '' || !rpc, 'aria-busy': busy === 'refreshAll' ? 'true' : undefined,
             onClick: () => accountAction('refreshAll', '', async () => {
@@ -4674,11 +4957,11 @@ function sameChannelTransport(left, right) {
               }
               onChanged(); await loadAccounts(); void loadBalances(true)
             }),
-          }, busy === 'refreshAll' ? '…' : t('chan.act.refresh')) : null,
+          }, t('chan.act.refresh')) : null,
           creditCapability ? h('button', {
-            type: 'button', className: 'ofm_btn ghost', disabled: balanceLoading || busy !== '' || !rpc,
-            'aria-busy': balanceLoading ? 'true' : undefined, onClick: () => void loadBalances(true),
-          }, balanceLoading ? t('chan.credits.loading') : t('chan.credits.refresh')) : null,
+            type: 'button', className: 'ofm_btn ghost', disabled: busy !== '' || !rpc,
+            onClick: () => void loadBalances(true),
+          }, t('chan.credits.refresh')) : null,
           h('button', {
             type: 'button', className: 'ofm_btn ghost', disabled: busy !== '' || !rpc,
             'aria-busy': busy === 'refreshModels' ? 'true' : undefined,
@@ -4691,24 +4974,41 @@ function sameChannelTransport(left, right) {
                 setNotice(t('chan.models.refreshed'))
               } catch (error) { onError(channel, error) } finally { setBusy('') }
             },
-          }, busy === 'refreshModels' ? '…' : t('chan.models.refresh')),
-          creditCapability?.claim ? h('button', {
-            type: 'button', className: 'ofm_btn ghost', disabled: busy !== '' || !rpc, 'aria-busy': busy === 'claim' ? 'true' : undefined,
+          }, t('chan.models.refresh')),
+          // 一键领取：这个渠道不支持时**照样显示，只是禁用**。
+          // 藏起来的话，同一排按钮在不同渠道卡里数目不同，用户会以为功能不存在；
+          // 禁用至少传达了「这个渠道没有签到」这件事。
+          h('button', {
+            type: 'button',
+            className: 'ofm_btn ghost',
+            disabled: claimable !== true || busy !== '' || !rpc,
+            'aria-busy': busy === 'claim' ? 'true' : undefined,
+            title: claimable === true ? undefined : t('chan.claim.unsupported'),
             onClick: claim,
-          }, busy === 'claim' ? '…' : t('chan.act.claim')) : null,
-          h('button', { type: 'button', className: 'ofm_foldtoggle', 'data-open': open === 'accounts' ? 'true' : 'false', onClick: () => void toggle('accounts') },
-            h('svg', { viewBox: '0 0 12 12', 'aria-hidden': 'true' }, h('path', { d: 'M3 1.5l6 4.5-6 4.5z' })),
-            t('chan.fold.accounts'), accounts === undefined ? null : ` (${accounts.length})`),
-          h('button', { type: 'button', className: 'ofm_foldtoggle', 'data-open': open === 'models' ? 'true' : 'false', onClick: () => void toggle('models') },
-            h('svg', { viewBox: '0 0 12 12', 'aria-hidden': 'true' }, h('path', { d: 'M3 1.5l6 4.5-6 4.5z' })),
-            t('chan.fold.models'), models === undefined ? null : ` (${models.length})`)),
+          }, busy === 'claim' ? '…' : t('chan.act.claim')),
+          // 两枚真按钮：点开的是弹窗，箭头那套「展开/收起」的暗示已经不对了。
+          h('button', {
+            type: 'button', className: 'ofm_btn ghost ofm_foldbtn',
+            'aria-haspopup': 'dialog',
+            onClick: () => void toggle('accounts'),
+          }, t('chan.fold.accounts'), accounts === undefined ? null : ` (${accounts.length})`),
+          // 模型数不写在这里：卡片顶部的指标行已经有一个「模型 N」，
+          // 同一屏重复两次只会让人以为两个数字可能不一样。
+          h('button', {
+            type: 'button', className: 'ofm_btn ghost ofm_foldbtn',
+            'aria-haspopup': 'dialog',
+            onClick: () => void toggle('models'),
+          }, t('chan.fold.models'))),
         notice !== '' ? h('p', { className: 'ofm_note' }, notice) : null,
         balanceError !== '' ? h('p', { className: 'ofm_balanceerror', role: 'alert' },
           t('chan.credits.failed').replace('{reason}', balanceError))
           : balanceFailures > 0 ? h('p', { className: 'ofm_balanceerror', role: 'status' },
             t('chan.credits.partial').replace('{count}', String(balanceFailures))) : null,
-        open === 'accounts' ? h('div', { className: 'ofm_chanfold' },
-          accounts === undefined ? h('div', { className: 'ofm_skel', style: { minHeight: 44 } })
+        open === 'accounts' ? h(FoldModal, {
+          title: t('chan.fold.accounts'),
+          onClose: () => setOpen(null),
+        },
+          accounts === undefined ? h('p', { className: 'ofm_note' }, '…')
             : accounts.length === 0 ? h('p', { className: 'ofm_note' }, t('chan.noAccount'))
               : h('div', { className: 'ofm_acctlist' }, accounts.map(row => {
                 const credit = creditFor(row.id)
@@ -4726,7 +5026,7 @@ function sameChannelTransport(left, right) {
                   (() => {
                     const balance = balanceOf(row.id)
                     if (!creditCapability) return null
-                    if (balanceLoading) return h('span', { className: 'ofm_note' }, t('chan.credits.loading'))
+                    // 静默：刷新时不把已有的余额换成「查询中…」，它只是变旧，不是消失。
                     const result = (balances ?? []).find(entry => entry.accountId === row.id)
                     if (balance === null || !Number.isFinite(balance.total)) return h('span', { className: 'ofm_balanceerror' },
                       balanceError ? t('chan.credits.failed').replace('{reason}', balanceError)
@@ -4769,8 +5069,11 @@ function sameChannelTransport(left, right) {
                       onClick: () => void removeAccount(row.id),
                     }, t('chan.act.delete'))))
               }))) : null,
-        open === 'models' ? h('div', { className: 'ofm_chanfold' },
-          models === undefined ? h('div', { className: 'ofm_skel', style: { minHeight: 44 } })
+        open === 'models' ? h(FoldModal, {
+          title: t('chan.fold.models'),
+          onClose: () => setOpen(null),
+        },
+          models === undefined ? h('p', { className: 'ofm_note' }, '…')
             : models.length === 0 ? h('p', { className: 'ofm_note' }, '—')
               : h(Fragment, null,
                 h('div', { className: 'ofm_row' },
@@ -4892,78 +5195,62 @@ function sameChannelTransport(left, right) {
      * 只读目录，不动 `disabledModels`：用户手动关掉的模型，同步一次不能又给
      * 他打开——那是两件事，混在一起用一次就没人敢按这个按钮了。
      */
-    function ModelSyncCard(props) {
+    /**
+     * 模型同步：一行按钮，不是一张卡。
+     *
+     * 它只有一个动作——跑一次——摊成一整张卡等于用半屏版面换一次点击。
+     * 状态压缩到按钮右边的灰字里：上次什么时候跑的、这一轮动了几个模型。
+     */
+    function ModelSyncButton(props) {
       const { t } = props
       const [state, setState] = useState(undefined)
       const [busy, setBusy] = useState(false)
-      const [failure, setFailure] = useState('')
       const load = useCallback(async () => {
         try {
           const value = await api('/model-sync', { timeout: 8000 })
           setState(value ?? {})
-        } catch (error) { setFailure(String(error?.message ?? error).slice(0, 160)) }
+        } catch { setState(null) }
       }, [])
       useEffect(() => { void load() }, [load])
       const run = useCallback(async () => {
         setBusy(true)
-        setFailure('')
         try {
           // 十几个渠道逐个拉，每个限时 25 秒，所以给足 3 分钟；api 默认 8 秒必超。
-          await post('/model-sync/run', {}, 180_000)
+          const result = await post('/model-sync/run', {}, 180_000)
           await load()
-          showToast({ title: t('ms.done') })
+          const totals = result?.totals ?? result?.lastDiff?.totals ?? {}
+          const parts = []
+          if (totals.added > 0) parts.push(`+${totals.added}`)
+          if (totals.removed > 0) parts.push(`−${totals.removed}`)
+          if (totals.changed > 0) parts.push(`~${totals.changed}`)
+          showToast({
+            title: t('ms.done'),
+            body: parts.length === 0 ? t('ms.same') : `${t('ms.models')} ${result?.total ?? totals.added}　${parts.join('　')}`,
+          })
         } catch (error) {
-          setFailure(String(error?.message ?? error).slice(0, 160))
+          showToast({ title: t('ms.runFailed'), body: String(error?.message ?? error).slice(0, 140), tone: 'warn' })
         } finally { setBusy(false) }
       }, [load, t])
 
       const info = state ?? {}
-      const rows = Array.isArray(info.providers) ? info.providers : []
       const lastAt = Number(info.lastRunAt ?? 0)
-      const fmt = at => {
-        if (at <= 0) return t('ms.never')
-        try { return new Date(at).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return '—' }
+      const totals = info.lastDiff?.totals ?? {}
+      const when = lastAt <= 0
+        ? t('ms.never')
+        : new Date(lastAt).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      const parts = []
+      if (lastAt > 0) {
+        if (Number.isFinite(info.total)) parts.push(`${t('ms.models')} ${info.total}`)
+        if (totals.added > 0) parts.push(`+${totals.added}`)
+        if (totals.removed > 0) parts.push(`−${totals.removed}`)
+        if (totals.changed > 0) parts.push(`~${totals.changed}`)
       }
-      const lastDiff = info.lastDiff ?? null
-      const totals = lastDiff?.totals ?? { added: 0, removed: 0, changed: 0 }
-      const changed = Array.isArray(lastDiff?.providers)
-        ? []
-        : Object.entries(lastDiff?.providers ?? {}).filter(([, row]) =>
-          (row?.added?.length ?? 0) + (row?.removed?.length ?? 0) + (row?.changed?.length ?? 0) > 0)
 
-      return h('div', { className: 'ofm_chan ofm_glass' },
-        h('div', { className: 'ofm_chanhead' },
-          h('span', { className: 'ofm_chanid' },
-            h('b', null, t('ms.title')),
-            h('span', null, t('ms.sub'))),
-          h('span', { className: 'ofm_chanstate' },
-            h('span', { className: `ofm_dot ${busy || info.running ? 'warn' : lastAt > 0 ? 'ok' : ''}` }),
-            busy || info.running ? t('ms.running') : t('ms.last') + ' ' + fmt(lastAt))),
-        failure === '' ? null : h('p', { className: 'ofm_note' }, failure),
-        h('div', { className: 'ofm_chanmeta' },
-          h('span', null, `${t('ms.models')} `, h('b', null, state === undefined ? '…' : String(info.total ?? 0))),
-          h('span', null, `${t('ms.added')} `, h('b', null, String(totals.added))),
-          h('span', null, `${t('ms.removed')} `, h('b', null, String(totals.removed))),
-          h('span', null, `${t('ms.changed')} `, h('b', null, String(totals.changed)))),
-        rows.length === 0
-          ? h('p', { className: 'ofm_note' }, state === undefined ? '…' : t('ms.empty'))
-          : h('div', { className: 'ofm_chanmeta' },
-            rows.map(row => h('span', { key: row.id },
-              h('b', null, row.id), ` ${String(row.count)}`,
-              row.lastDiff?.added?.length ? ` +${row.lastDiff.added.length}` : '',
-              row.lastDiff?.removed?.length ? ` −${row.lastDiff.removed.length}` : ''))),
-        changed.length === 0 ? null : h('p', { className: 'ofm_note' },
-          changed.slice(0, 6).map(([id, row]) => {
-            const parts = []
-            if (row?.added?.length) parts.push(`+${row.added.slice(0, 3).join(', ')}${row.added.length > 3 ? ' …' : ''}`)
-            if (row?.removed?.length) parts.push(`−${row.removed.slice(0, 3).join(', ')}${row.removed.length > 3 ? ' …' : ''}`)
-            if (row?.changed?.length) parts.push(`~${row.changed.slice(0, 3).map(item => item.id).join(', ')}`)
-            return `${id}: ${parts.join(' | ')}`
-          }).join('　')),
-        h('div', { className: 'ofm_chanacts' },
-          h(Button, { disabled: busy, onClick: () => void run() },
-            busy ? t('ms.running') : t('ms.run'))),
-        h('p', { className: 'ofm_note' }, t('ms.hint')))
+      return h('div', { className: 'ofm_row' },
+        h(Button, { disabled: busy, title: t('ms.hint'), onClick: () => void run() },
+          busy ? t('ms.running') : t('ms.run')),
+        h('span', { className: 'ofm_note' },
+          parts.length === 0 ? when : `${when} · ${parts.join(' · ')}`))
     }
 
 
@@ -4996,207 +5283,41 @@ function sameChannelTransport(left, right) {
     // 重签就得知道是哪一号账号的 AK/SK。这个卡只做一件事 —— 把账号的
     // credentialRef 递进 bili 扫的那个文件；密钥本体始终留在宿主凭据库里。
 
-    function ResignCard(props) {
-      const { t } = props
-      const [state, setState] = useState(undefined)
-      const [bili, setBili] = useState(undefined)
-      const [busy, setBusy] = useState(false)
-      const load = useCallback(async () => {
-        try { setState(await api('/resign/status', { timeout: 8000 })) }
-        catch (error) { setState({ error: String(error?.message ?? error) }) }
-        try { setBili(await api('/bili/status', { timeout: 8000 })) }
-        catch (error) { setBili({ error: String(error?.message ?? error) }) }
-      }, [])
-      useEffect(() => { void load() }, [load])
-      const sync = useCallback(async () => {
-        setBusy(true)
-        try {
-          const value = await post('/resign/sync', {}, 20_000)
-          setState(current => ({ ...(current ?? {}), ...(value !== null && typeof value === 'object' ? value : {}) }))
-          showToast({ title: t('rs.done'), body: String(value?.accounts ?? 0) })
-        } catch (error) {
-          showToast({ title: t('rs.failed').replace('{reason}', String(error?.message ?? error).slice(0, 160)), tone: 'warn' })
-        } finally {
-          setBusy(false)
-          await load()
-        }
-      }, [load, t])
-      // 华为云那条链路的签名盖住请求体，bili 只能「重签后压缩」或「拒转发」。
-      // 它的重签实测过不了上游，所以这里给一个开关，把那条链路设成原样放行。
-      const togglePassthrough = useCallback(async () => {
-        const wanted = bili?.passthrough !== true
-        setBusy(true)
-        try {
-          await post('/bili/passthrough', { enabled: wanted }, 20_000)
-        } catch (error) {
-          showToast({ title: t('chan.error').replace('{reason}', String(error?.message ?? error).slice(0, 160)), tone: 'warn' })
-        } finally {
-          setBusy(false)
-          await load()
-        }
-      }, [bili, load, t])
-
-      const info = state ?? {}
-      const failure = typeof info.error === 'string' ? info.error : ''
-      const candidates = Array.isArray(info.candidates) ? info.candidates : []
-      const last = info.last !== null && typeof info.last === 'object' ? info.last : null
-      const ready = candidates.length > 0
-      const biliInfo = bili !== null && typeof bili === 'object' ? bili : {}
-      const biliMode = typeof biliInfo.mode === 'string' ? biliInfo.mode : 'unknown'
-      const biliText = t(`rs.bili.${biliMode}`) === `rs.bili.${biliMode}` ? String(biliMode) : t(`rs.bili.${biliMode}`)
-
-      return h('div', { className: 'ofm_chan ofm_glass', 'data-state': ready ? 'on' : 'off' },
-        h('div', { className: 'ofm_chanhead' },
-          h('span', { className: 'ofm_chanid' },
-            h('b', null, t('rs.title')),
-            h('span', null, t('rs.sub'))),
-          h('span', { className: 'ofm_chanstate' },
-            h('span', { className: `ofm_dot ${ready ? 'ok' : ''}` }),
-            state === undefined ? '…' : (ready ? `${candidates.length} ${t('rs.accounts')}` : t('rs.none')))),
-        failure !== '' ? h('p', { className: 'ofm_note' }, failure) : null,
-        h('div', { className: 'ofm_chanmeta' },
-          h('span', null, last !== null && typeof last.at === 'number' ? `${t('rs.last')} ${new Date(last.at).toLocaleTimeString()}` : t('rs.never')),
-          h('button', { type: 'button', className: 'ofm_btn', disabled: busy, onClick: () => void sync() }, busy ? t('rs.syncing') : t('rs.sync'))),
-        h('p', { className: 'ofm_note' }, t('rs.hint')),
-        h('div', { className: 'ofm_chanmeta' },
-          h('span', null, `${t('rs.bili.label')} ${bili === undefined ? '…' : biliText}`),
-          h('button', {
-            type: 'button',
-            className: 'ofm_btn ghost',
-            disabled: busy || biliInfo.present === false,
-            onClick: () => void togglePassthrough(),
-          }, biliInfo.passthrough === true ? t('rs.bili.off') : t('rs.bili.on'))),
-        h('p', { className: 'ofm_note' }, t('rs.bili.hint')))
-    }
-
+    /**
+     * 免费渠道代理（一个功能，一个开关）。
+     *
+     * 这正是用户看到的样子：**一个**代理。转发到官方 CLI / 桌面软件的 OpenAI 兼容
+     * 端点只管本机，要跨设备访问就得有人在前面接一手；上游套娃的每一跳
+     * （渠道包的 loopback 网关 → 本插件的中继）都是内部实现细节。
+     *
+     * 卡片上只有三样东西：开关、地址、key —— 打开它，两跳一起起来；
+     * 关掉它，一起停。上半区的 pack 网关不再有独立的开关。
+     */
     function GatewayCard(props) {
       const { t } = props
       // 走 pack 自己注册的 `/api/channel-pack`（客户端的 rpc() 三级回落里最后那一级），
       // 不新增宿主路由：宿主只要多一条调用 pack 内部函数的路径，就得把 pack 的私有
       // 处理器导出，而它在包里并不是模块顶层函数（导出会让整包加载失败）。
       const rpc = typeof props.rpc === 'function' ? props.rpc : null
-      const [state, setState] = useState(undefined)
+      const [state, setState] = useState(undefined)      // pack 网关（内部上游）
+      const [relay, setRelay] = useState(undefined)      // 本插件中继（对外的那个门）
       const [busy, setBusy] = useState('')
-      const [shown, setShown] = useState(false)
+      const [secret, setSecret] = useState('')
       const [test, setTest] = useState(undefined)
-      const load = useCallback(async () => {
+      const [editingBase, setEditingBase] = useState(false)
+      const [draftBase, setDraftBase] = useState('')
+      const loadUpstream = useCallback(async () => {
         if (rpc === null) { setState({ error: t('chan.rpc.unavailable') }); return }
         try { setState(await rpc('gateway.getEnabled', {}, 20_000)) }
         catch (error) { setState({ error: String(error?.message ?? error) }) }
       }, [rpc, t])
-      useEffect(() => { void load() }, [load])
-      // 一个动作一个 busy 值：开关、换密钥、自检三条互斥，避免连点把状态写乱。
-      const act = useCallback(async (method, payload, timeout) => {
-        if (rpc === null) return undefined
-        setBusy(method)
-        try {
-          const value = await rpc(method, payload, timeout ?? 30_000)
-          setState(current => ({ ...(current ?? {}), ...(value !== null && typeof value === 'object' ? value : {}) }))
-          return value
-        } catch (error) {
-          showToast({ title: t('chan.error').replace('{reason}', String(error?.message ?? error).slice(0, 160)), tone: 'warn' })
-          return undefined
-        } finally { setBusy('') }
-      }, [t])
-      const copy = useCallback(async (text, label) => {
-        try {
-          await navigator.clipboard.writeText(String(text))
-          showToast({ title: t('gw.copied'), body: label })
-        } catch (error) {
-          showToast({ title: String(error?.message ?? error).slice(0, 160), body: label, tone: 'warn' })
-        }
-      }, [t])
-
-      const info = state ?? {}
-      const failure = typeof info.error === 'string' ? info.error : ''
-      const enabled = info.enabled === true
-      const running = info.running === true
-      const blocked = info.blockedByEnv === true
-      const key = info.apiKey !== null && typeof info.apiKey === 'object' ? info.apiKey : null
-      const keyValue = typeof key?.value === 'string' ? key.value : ''
-      const keyFromEnv = key?.fromEnv === true
-      const address = info.address !== null && typeof info.address === 'object' ? info.address : null
-      const base = address !== null && typeof address.port === 'number' ? `http://${address.host}:${address.port}/v1` : ''
-      const models = Array.isArray(info.models) ? info.models : []
-      const tone = blocked ? 'warn' : running ? 'ok' : ''
-      const stateText = blocked ? t('gw.envBlocked') : running ? t('gw.running') : t('gw.stopped')
-
-      return h('div', { className: `ofm_chan ofm_glass${enabled ? '' : ' off'}`, 'data-state': enabled ? 'on' : 'off' },
-        h('div', { className: 'ofm_chanhead' },
-          h('span', { className: 'ofm_chanid' },
-            h('b', null, t('gw.channelTitle')),
-            h('span', null, t('gw.channelSub'))),
-          h('span', { className: 'ofm_chanstate' },
-            h('span', { className: `ofm_dot ${tone}` }),
-            state === undefined ? '…' : stateText)),
-        failure !== '' ? h('p', { className: 'ofm_note' }, failure) : null,
-        h('div', { className: 'ofm_chanmeta' },
-          h('span', null, `${t('gw.base')} `, h('b', null, base === '' ? '—' : base)),
-          base === '' ? null : h('button', { type: 'button', className: 'ofm_btn', onClick: () => void copy(base, t('gw.base')) }, t('gw.copy')),
-          base === '' || keyValue === '' ? null : h('button', {
-            type: 'button',
-            className: 'ofm_btn',
-            onClick: () => void copy(`base_url: ${base}\napi_key: ${keyValue}`, t('gw.copyConfig')),
-          }, t('gw.copyConfig')),
-          h('span', null, `${t('gw.models')} `, h('b', null, state === undefined ? '…' : String(models.length))),
-          keyValue === '' ? null : h('span', null, `${t('gw.key')} `,
-            h('b', null, shown ? keyValue : '•'.repeat(Math.min(keyValue.length, 12))),
-            h('button', { type: 'button', className: 'ofm_btn', onClick: () => setShown(value => !value) },
-              shown ? t('gw.hide') : t('gw.show')),
-            h('button', { type: 'button', className: 'ofm_btn', onClick: () => void copy(keyValue, t('gw.key')) }, t('gw.copy')))),
-        keyValue === '' ? h('p', { className: 'ofm_note' }, t('gw.keyNoneHint')) : null,
-        keyValue === '' ? null : h('p', { className: 'ofm_note' },
-          keyFromEnv ? t('gw.keyNote') : `${t('gw.keyNote')} ${typeof key?.path === 'string' ? key.path : ''}`),
-        h('div', { className: 'ofm_chanacts' },
-          h(Switch, {
-            checked: enabled,
-            label: t('gw.switch'),
-            disabled: busy === 'gateway.setEnabled' || blocked,
-            onChange: () => { void act('gateway.setEnabled', { enabled: !enabled }) },
-          }),
-          h(Button, {
-            disabled: busy !== '' || blocked,
-            onClick: () => { setTest(undefined); void act('gateway.regenerateKey').then(value => { if (value !== undefined) showToast({ title: t('gw.regenerated') }) }) },
-          }, busy === 'gateway.regenerateKey' ? '…' : (keyValue === '' ? '生成 API Key' : t('gw.regenerate'))),
-          h(Button, {
-            disabled: busy !== '' || !running,
-            onClick: async () => {
-              setTest(undefined)
-              const first = typeof models[0]?.id === 'string' ? models[0].id : ''
-              const value = await act('gateway.selfTest', first === '' ? {} : { model: first }, 180_000)
-              if (value !== undefined) setTest(value)
-            },
-          }, busy === 'gateway.selfTest' ? t('gw.testing') : t('gw.test'))),
-        test === undefined ? null : h('div', { className: 'ofm_chanmeta' },
-          h(Pill, { tone: test?.reachable === true ? 'ok' : 'err' },
-            test?.reachable === true
-              ? t('gw.testModels').replace('{count}', String(test?.models ?? 0))
-              : t('gw.testDead').replace('{reason}', String(test?.reason ?? '—'))),
-          test?.reachable !== true ? null : h(Pill, { tone: test?.authEnforced === true ? 'ok' : 'err' },
-            test?.authEnforced === true ? t('gw.testAuthOk') : t('gw.testAuthBad')),
-          typeof test?.chat?.status === 'number' ? h(Pill, { tone: test.chat.status === 200 ? 'ok' : 'err' },
-            `${t('gw.testChat')} HTTP ${test.chat.status}`) : null))
-    }
-
-    /**
-     * 渠道网关的对外钥匙。
-     *
-     * 后端的 /chan-gateway 是插件自己的一扇门：调用方拿这张卡里生成的 key 进来，
-     * 插件把它转给本机 pack 的 loopback OpenAI 端点，网关自己的凭据不出主机。
-     * 所以这张卡只摆四件事：开关、地址、key（生成/隐藏/复制/换一把）、以及它现在
-     * 到底有没有在听——拿不到 key 的人看不出它开没开。
-     */
-    function ChanRelayCard(props) {
-      const { t } = props
-      const [state, setState] = useState(undefined)
-      const [busy, setBusy] = useState('')
-      const [keyValue, setKeyValue] = useState('')
-      const [shown, setShown] = useState(false)
-      const load = useCallback(async () => {
-        try { setState(await api('/chan-gateway', { timeout: 20_000 })) }
-        catch (error) { setState({ error: String(error?.message ?? error) }) }
+      const loadRelay = useCallback(async () => {
+        try { setRelay(await api('/chan-gateway', { timeout: 20_000 })) }
+        catch (error) { setRelay({ error: String(error?.message ?? error) }) }
       }, [])
+      const load = useCallback(async () => { await Promise.all([loadUpstream(), loadRelay()]) }, [loadUpstream, loadRelay])
       useEffect(() => { void load() }, [load])
+
       const readKey = useCallback(async () => {
         try { const value = await api('/chan-gateway/key', { timeout: 15_000 }); return String(value?.key ?? '') }
         catch (error) { showToast({ title: String(error?.message ?? error).slice(0, 160), tone: 'warn' }); return '' }
@@ -5209,89 +5330,173 @@ function sameChannelTransport(left, right) {
           showToast({ title: String(error?.message ?? error).slice(0, 160), body: label, tone: 'warn' })
         }
       }, [t])
+      // 一个开关，驱动整条链路：先是上游那个 loopback 网关，再是本插件的转发。
+      // 上游必须由页面来点：宿主侧那条路在桌面端会挂起（connection.rpc），
+      // 而浏览器到 pack 的直连是已验证可用的（三级回落里最后一级）。
       const toggle = useCallback(async () => {
-        const wanted = !(state?.relay?.enabled === true)
-        setBusy('apply')
+        const wanted = !(relay?.relay?.enabled === true)
+        setBusy('toggle')
         try {
-          const value = await post('/chan-gateway/apply', { enabled: wanted }, 30_000)
-          setState(current => ({ ...(current ?? {}), ...(value !== null && typeof value === 'object' ? value : {}) }))
+          if (rpc !== null) {
+            // 上游失败不该拦住转发本身：报错留给用户看，转发照常尝试开。
+            try { await rpc('gateway.setEnabled', { enabled: wanted }, 60_000) }
+            catch (error) { showToast({ title: t('gw.upstreamFailed'), body: String(error?.message ?? error).slice(0, 140), tone: 'warn' }) }
+          }
+          const value = await post('/chan-gateway/apply', { enabled: wanted }, 60_000)
+          setRelay(current => ({ ...(current ?? {}), ...(value !== null && typeof value === 'object' ? value : {}) }))
+          await loadUpstream()
         } catch (error) {
           showToast({ title: t('chan.error').replace('{reason}', String(error?.message ?? error).slice(0, 160)), tone: 'warn' })
         } finally { setBusy('') }
-      }, [state, t])
+      }, [relay, rpc, loadUpstream, t])
+      // 保存对外地址：空串 = 清掉自定义、回到自动推算。
+      const saveBase = useCallback(async raw => {
+        setBusy('base')
+        try {
+          const value = await post('/chan-gateway/apply', { baseUrl: String(raw ?? '').trim() }, 30_000)
+          setRelay(current => ({ ...(current ?? {}), ...(value !== null && typeof value === 'object' ? value : {}) }))
+          setEditingBase(false)
+        } catch (error) {
+          showToast({ title: t('chan.error').replace('{reason}', String(error?.message ?? error).slice(0, 160)), tone: 'warn' })
+        } finally { setBusy('') }
+      }, [t])
       const mint = useCallback(async () => {
         setBusy('rotate')
         try {
           const value = await post('/chan-gateway/rotate', undefined, 20_000)
           const minted = String(value?.key ?? '')
-          setKeyValue(minted)
-          setShown(true)
-          if (minted !== '') await copy(minted, 'API Key')
-          await load()
+          setSecret(minted)
+          if (minted !== '') await copy(minted, t('gw.key'))
+          await loadRelay()
         } catch (error) {
           showToast({ title: t('chan.error').replace('{reason}', String(error?.message ?? error).slice(0, 160)), tone: 'warn' })
         } finally { setBusy('') }
-      }, [load, copy, t])
+      }, [loadRelay, copy, t])
 
-      const info = state ?? {}
-      const failure = typeof info.error === 'string' ? info.error : ''
-      const relay = info.relay !== null && typeof info.relay === 'object' ? info.relay : {}
-      const upstream = info.gateway !== null && typeof info.gateway === 'object' ? info.gateway : {}
-      const enabled = relay.enabled === true
-      const running = relay.running === true
-      const port = typeof relay.port === 'number' && relay.port > 0 ? relay.port : 0
-      const host = typeof relay.host === 'string' && relay.host !== '' ? relay.host : '127.0.0.1'
-      const base = enabled && port !== 0 ? `http://${host}:${port}/v1` : ''
-      const relayError = typeof relay.error === 'string' ? relay.error : ''
-      const hasKey = relay.hasKey === true || keyValue !== ''
-      const tone = enabled ? (running ? 'ok' : 'warn') : ''
+      const up = state ?? {}
+      const upFailure = typeof up.error === 'string' ? up.error : ''
+      const upBlocked = up.blockedByEnv === true
+      const upRunning = up.running === true
+      const models = Array.isArray(up.models) ? up.models : []
+      const relayInfo = relay ?? {}
+      const relayFailure = typeof relayInfo.error === 'string' ? relayInfo.error : ''
+      const gate = relayInfo.relay !== null && typeof relayInfo.relay === 'object' ? relayInfo.relay : {}
+      const enabled = gate.enabled === true
+      const listening = gate.running === true
+      const port = typeof gate.port === 'number' && gate.port > 0 ? gate.port : 0
+      const host = typeof gate.host === 'string' && gate.host !== '' ? gate.host : '127.0.0.1'
+      // 手填的对外地址优先；没填就按监听地址推算。监听 0.0.0.0 时自动值对别人
+      // 不可用（那是「本机所有网卡」的意思），正因如此才需要这个字段。
+      const customBase = typeof gate.baseUrl === 'string' ? gate.baseUrl : ''
+      const autoBase = port !== 0 ? `http://${host}:${port}/v1` : ''
+      const base = customBase !== '' ? customBase : (enabled && autoBase !== '' ? autoBase : '')
+      const hasKey = gate.hasKey === true || secret !== ''
+      const tone = enabled ? (listening ? 'ok' : 'warn') : ''
+      const stateText = relay === undefined || state === undefined
+        ? '…'
+        : enabled ? (listening ? t('gw.running') : t('gw.stopped')) : t('gw.off')
 
-      return h('div', { className: `ofm_chan ofm_glass${enabled ? '' : ' off'}`, 'data-state': enabled ? 'on' : 'off' },
+      // data-ofm-wide：代理卡独占一行，不参与多列网格（见 .ofm_side .ofm_chan[data-ofm-wide]）。
+      return h('div', {
+        className: `ofm_chan ofm_glass ofm_proxy${enabled ? '' : ' off'}`,
+        'data-state': enabled ? 'on' : 'off',
+        'data-ofm-wide': 'true',
+        // 那句「只放行 /v1/*，内部那跳会一起启动」现在挂在整卡 title 上：
+        // 它解释的是这张卡的边界，不是要每次读一遍的操作提示。
+        title: t('gw.proxyNote'),
+      },
         h('div', { className: 'ofm_chanhead' },
           h('span', { className: 'ofm_chanid' },
-            h('b', null, '渠道网关'),
-            h('span', null, '对外一把 key · 全部免费渠道')),
+            h('b', null, t('gw.proxyTitle')),
+            // 模型数是个纯读数，放标题行尾巴上，不占一整行
+            h('span', null, t('gw.proxySub'), ' · ', t('gw.models'), ' ',
+              h('b', { className: 'ofm_proxymodels' }, state === undefined ? '…' : String(models.length)))),
           h('span', { className: 'ofm_chanstate' },
             h('span', { className: `ofm_dot ${tone}` }),
-            state === undefined ? '…' : enabled ? (running ? '在听' : '没起来') : '关')),
-        failure !== '' ? h('p', { className: 'ofm_note' }, failure) : null,
-        h('div', { className: 'ofm_chanmeta' },
-          h('span', null, '地址 ', h('b', null, base === '' ? '—' : base)),
-          base === '' ? null : h('button', { type: 'button', className: 'ofm_btn', onClick: () => void copy(base, '地址') }, t('gw.copy')),
-          h('span', null, '上游端口 ', h('b', null, typeof upstream.port === 'number' ? String(upstream.port) : '—')),
-          hasKey
-            ? h('span', null, 'key ',
-              h('b', null, shown && keyValue !== '' ? keyValue : '•'.repeat(12)),
-              h('button', {
-                type: 'button', className: 'ofm_btn',
-                onClick: async () => {
-                  if (!shown && keyValue === '') { const value = await readKey(); if (value === '') return; setKeyValue(value) }
-                  setShown(value => !value)
+            stateText)),
+        relayFailure === '' ? null : h('p', { className: 'ofm_note' }, relayFailure),
+        // 三行「标签 / 值 / 操作」，每行一条信息。之前全挤在一个 flex 行里，
+        // 复制、显示、复制配置三个按钮连排，值反而成了配角。
+        h('div', { className: 'ofm_proxyrows' },
+          h('div', { className: 'ofm_proxyrow' },
+            h('span', { className: 'ofm_proxylabel' }, t('gw.base')),
+            editingBase
+              ? h('input', {
+                className: 'ofm_proxyinput',
+                value: draftBase,
+                placeholder: autoBase === '' ? 'http://127.0.0.1:8327/v1' : autoBase,
+                spellCheck: false,
+                autoFocus: true,
+                onInput: event => setDraftBase(event.target.value),
+                onKeyDown: event => {
+                  if (event.key === 'Enter') { event.preventDefault(); void saveBase(draftBase) }
+                  if (event.key === 'Escape') { event.preventDefault(); setEditingBase(false) }
                 },
-              }, shown ? t('gw.hide') : t('gw.show')),
-              h('button', {
-                type: 'button', className: 'ofm_btn',
+              })
+              : h('code', { className: 'ofm_proxyval', title: base === '' ? '' : base }, base === '' ? '—' : base),
+            editingBase
+              ? h('span', { className: 'ofm_proxyactions' },
+                h('button', { type: 'button', className: 'ofm_minibtn', onClick: () => { void saveBase(draftBase) } }, t('gw.baseSave')),
+                h('button', { type: 'button', className: 'ofm_minibtn', onClick: () => { void saveBase('') } }, t('gw.baseReset')),
+                h('button', { type: 'button', className: 'ofm_minibtn', onClick: () => setEditingBase(false) }, t('gw.baseCancel')))
+              : h('span', { className: 'ofm_proxyactions' },
+                base === '' ? null : h('button', { type: 'button', className: 'ofm_minibtn', onClick: () => void copy(base, t('gw.base')) }, t('gw.copy')),
+                h('button', {
+                  type: 'button', className: 'ofm_minibtn', title: t('gw.baseHint'),
+                  onClick: () => { setDraftBase(customBase); setEditingBase(true) },
+                }, t('gw.baseEdit')))),
+          h('div', { className: 'ofm_proxyrow' },
+            h('span', { className: 'ofm_proxylabel' }, t('gw.key')),
+            hasKey
+              // 只有「复制」：不在这里摊开明文。要的是一串能粘走的东西，
+              // 不是让人对着屏幕抄。
+              ? h('code', { className: 'ofm_proxyval' }, '•'.repeat(12))
+              : h('code', { className: 'ofm_proxyval ofm_proxyval-none' }, t('gw.keyNone')),
+            hasKey
+              ? h('button', {
+                type: 'button', className: 'ofm_minibtn',
                 onClick: async () => {
-                  const value = keyValue !== '' ? keyValue : await readKey()
+                  const value = secret !== '' ? secret : await readKey()
                   if (value === '') return
-                  setKeyValue(value)
-                  await copy(value, 'API Key')
+                  setSecret(value)
+                  await copy(value, t('gw.key'))
                 },
-              }, t('gw.copy')))
-            : null),
-        base === '' || !hasKey ? null : h('p', { className: 'ofm_note' },
-          `base_url: ${base}   api_key: ••••`),
-        hasKey ? null : h('p', { className: 'ofm_note' }, '还没有 key：点一下「生成 API Key」就会写进设置，key 只在本机。'),
-        relayError === '' ? null : h('p', { className: 'ofm_note' }, relayError),
+              }, t('gw.copy'))
+              : null)),
+        hasKey ? null : h('p', { className: 'ofm_note' }, t('gw.keyNoneHint')),
+        upBlocked ? h('p', { className: 'ofm_note' }, t('gw.envBlocked')) : null,
         h('div', { className: 'ofm_chanacts' },
           h(Switch, {
             checked: enabled,
-            label: '对外开放',
-            disabled: busy !== '',
+            label: t('gw.proxySwitch'),
+            disabled: busy === 'toggle',
             onChange: () => { void toggle() },
           }),
           h(Button, { disabled: busy !== '', onClick: () => { void mint() } },
-            busy === 'rotate' ? '…' : hasKey ? '换一把 key' : '生成 API Key')))
+            busy === 'rotate' ? '…' : hasKey ? t('gw.regenerate') : t('gw.genKey')),
+          h(Button, {
+            disabled: busy !== '' || !enabled || !listening,
+            onClick: async () => {
+              setTest(undefined)
+              setBusy('test')
+              try {
+                // 自检打的是对外那扇门：能通说明两跳都活着，比只测上游更接近真实用法。
+                const response = await fetch(`${base}/models`, {
+                  headers: hasKey ? { authorization: `Bearer ${secret !== '' ? secret : await readKey()}` } : {},
+                })
+                const body = await response.json().catch(() => null)
+                setTest({ status: response.status, count: Array.isArray(body?.data) ? body.data.length : 0 })
+              } catch (error) {
+                setTest({ error: String(error?.message ?? error).slice(0, 160) })
+              } finally { setBusy('') }
+            },
+          }, busy === 'test' ? t('gw.testing') : t('gw.test'))),
+        test === undefined ? null : h('div', { className: 'ofm_chanmeta' },
+          test?.error !== undefined
+            ? h(Pill, { tone: 'err' }, t('gw.testDead').replace('{reason}', String(test.error)))
+            : h(Pill, { tone: test?.status === 200 ? 'ok' : 'err' },
+              `HTTP ${test?.status} · ${t('gw.testModels').replace('{count}', String(test?.count ?? 0))}`)),
+        h('p', { className: 'ofm_note ofm_proxynote' }, t('gw.proxyNote')))
     }
 
     function MiMoCard(props) {
@@ -5339,10 +5544,15 @@ function sameChannelTransport(left, right) {
         signedIn || state === undefined ? null : h('p', { className: 'ofm_note' }, String(state?.reason ?? '未在小米 MiMo 桌面端登录')),
         h('div', { className: 'ofm_chanacts' },
           h('button', {
-            type: 'button', className: 'ofm_btn', disabled: busy,
+            type: 'button', className: 'ofm_btn ghost', disabled: busy,
             'aria-busy': busy ? 'true' : undefined,
             onClick: () => { setBusy(true); void load(true).finally(() => setBusy(false)) },
-          }, busy ? '…' : '刷新额度')))
+          }, busy ? '…' : '刷新额度'),
+          // 小米这条线没有签到接口；按钮照留、置灰，卡片之间的按钮排布才不会跳。
+          h('button', {
+            type: 'button', className: 'ofm_btn ghost', disabled: true,
+            title: t('chan.claim.unsupported'),
+          }, t('chan.act.claim'))))
     }
 
 
@@ -5552,7 +5762,7 @@ function sameChannelTransport(left, right) {
           h('span', { className: 'ofm_credittotal' }, '剩余积分 ', h('b', null, creditLabel))),
         h('div', { className: 'ofm_chanacts' },
           h('button', {
-            type: 'button', className: 'ofm_btn', disabled,
+            type: 'button', className: 'ofm_btn ghost', disabled,
             'aria-busy': busy === 'add' ? 'true' : undefined,
             onClick: () => { void login() },
           }, busy === 'add' ? '…' : t('chan.act.add')),
@@ -5560,7 +5770,7 @@ function sameChannelTransport(left, right) {
             type: 'button', className: 'ofm_btn ghost', disabled,
             'aria-busy': busy === 'refresh' ? 'true' : undefined,
             onClick: () => { void refresh() },
-          }, busy === 'refresh' ? t('chan.credits.loading') : t('chan.credits.refresh')) : null,
+          }, t('chan.credits.refresh')) : null,
           h('button', {
             type: 'button', className: 'ofm_btn ghost', disabled: disabled || !installed,
             'aria-busy': busy === 'models' ? 'true' : undefined,
@@ -5758,7 +5968,7 @@ function sameChannelTransport(left, right) {
           : null,
         h('div', { className: 'ofm_chanacts' },
           h('button', {
-            type: 'button', className: 'ofm_btn', disabled: disabled || !installed,
+            type: 'button', className: 'ofm_btn ghost', disabled: disabled || !installed,
             'aria-busy': busy === 'add' ? 'true' : undefined,
             onClick: () => { void login() },
           }, busy === 'add' ? '…' : t('chan.act.add')),
@@ -5781,7 +5991,7 @@ function sameChannelTransport(left, right) {
             type: 'button', className: 'ofm_btn ghost', disabled: disabled || !installed,
             'aria-busy': busy === 'claim' ? 'true' : undefined,
             onClick: () => { void claimCredit() },
-          }, busy === 'claim' ? '…' : '一键领取')))
+          }, busy === 'claim' ? '…' : t('chan.act.claim'))))
     }
 
     /**
@@ -5913,12 +6123,12 @@ function sameChannelTransport(left, right) {
             : null,
         h('div', { className: 'ofm_chanacts' },
           h('button', {
-            type: 'button', className: 'ofm_btn', disabled: busy,
+            type: 'button', className: 'ofm_btn ghost', disabled: busy,
             'aria-busy': busy ? 'true' : undefined,
             onClick: () => { setBusy(true); void load(true).finally(() => setBusy(false)) },
           }, busy ? '…' : '重新检测'),
           h('button', {
-            type: 'button', className: 'ofm_btn', disabled: check?.running === true || !installed,
+            type: 'button', className: 'ofm_btn ghost', disabled: check?.running === true || !installed,
             onClick: () => { void runCheck() },
           }, check?.running === true ? '自检中…' : '自检一次')))
     }
@@ -5977,6 +6187,80 @@ function sameChannelTransport(left, right) {
       if (!Array.isArray(value)) return []
       const ids = value.filter(id => typeof id === 'string' && /^[a-z][a-z0-9_-]{1,39}$/.test(id))
       return [...new Set(ids)].slice(0, 64)
+    }
+
+    /* ── 侧边栏入口开关 ──────────────────────────────────────────────────────
+     * 入口是可选的：有人只用设置页就够了，少一个图标少一份噪音。偏好存插件设置
+     * （/settings 的 sidebarEntry），换台机器、重装插件都跟着走。
+     * 座位的注册/注销在 apply 的槽位注入里，组件只能通过下面这两个模块级函数
+     * 去拨动它 —— 组件里拿不到那个闭包。
+     */
+    const ofmSidebar = { ctx: null, seat: false, dispose: null, want: true }
+    function syncOfmSidebarEntry(want) {
+      ofmSidebar.want = want !== false
+      if (!ofmSidebar.seat || ofmSidebar.ctx === null) return
+      if (ofmSidebar.want && ofmSidebar.dispose === null) {
+        ofmSidebar.dispose = ofmSidebar.ctx.slots.register({
+          name: 'sidebar.panellist',
+          id: 'get-it-for-free',
+          order: 25,
+          label: () => (String(document?.documentElement?.lang ?? '').toLowerCase().startsWith('zh') ? '免费渠道' : 'Free Channels'),
+          locale: NS,
+        }, SidebarIcon)
+      } else if (!ofmSidebar.want && ofmSidebar.dispose !== null) {
+        ofmSidebar.dispose()
+        ofmSidebar.dispose = null
+      }
+    }
+
+    /**
+     * 设置页左侧导航里那枚图标。
+     *
+     * 宿主对没注册 `settings.section.icon` 的插件段一律发一个齿轮 —— 齿轮是
+     * 「设置」本身的象征，每个插件都挂它等于都没有图标。这里补一枚和侧栏座位
+     * 同一套线条的票券，缩到 16px 也认得出。
+     */
+    function SettingsSectionIcon({ size }) {
+      const box = typeof size === 'number' && size > 0 ? size : 16
+      return h('svg', {
+        width: box, height: box, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true',
+      },
+        h('rect', {
+          x: '3.2', y: '6.4', width: '17.6', height: '11.6', rx: '3',
+          stroke: 'currentColor', 'stroke-width': '1.7',
+        }),
+        h('path', { d: 'M3.4 11h17.2', stroke: 'currentColor', 'stroke-width': '1.5' }),
+        h('circle', { cx: '16.2', cy: '14.6', r: '1.3', fill: 'currentColor' }))
+    }
+
+    /** 侧栏座位图标：18px 线图标，跟随 currentColor，深浅色主题同一份。 */
+    function SidebarIcon() {
+      return h('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': 'true' },
+        h('rect', { x: '3.2', y: '6.4', width: '17.6', height: '11.6', rx: '3', stroke: 'currentColor', 'stroke-width': '1.7' }),
+        h('path', { d: 'M3.4 11h17.2', stroke: 'currentColor', 'stroke-width': '1.5' }),
+        h('circle', { cx: '16.2', cy: '14.6', r: '1.3', fill: 'currentColor' }))
+    }
+
+    /* ── 侧边栏页面 ──────────────────────────────────────────────────────────
+     * 渠道页原来只活在「设置 → 免费渠道」里：那是你要改配置时才去的地方，而
+     * 「还剩多少额度、哪个渠道掉了」是随时想看的东西。这里把它挂到左侧栏的
+     * 面板位上，版面按侧栏的窄列重排。
+     *
+     * 尺寸参考 dsh-context：卡片 padding 14px 16px、圆角 12px、块间距 14px，
+     * 底色 --dsw-alias-bg-layer-1、描边 --dsw-alias-border-l2 —— 它和 DSH 原生
+     * 卡片对齐，两个插件并排开着不会一高一低。
+     */
+    function SidebarPage(props) {
+      const { t, ctx } = props
+      const summary = useAsync(() => api('/summary'), [])
+      // 满高 + 自己滚：main 槽位的容器是定高的，少了这几个属性内容会被直接裁掉。
+      return h('div', { className: 'ofm_side', style: { height: '100%', minHeight: 0, overflowY: 'auto' } },
+        summary.status === 'error'
+          ? h('div', { className: 'ofm_side-card' },
+            h('div', { className: 'ofm_side-title' }, t('loadFailed')),
+            h('p', { className: 'ofm_side-note' }, String(summary.error ?? '').slice(0, 160)),
+            h(Button, { onClick: () => summary.reload() }, t('retry')))
+          : h(ChannelsPage, { t, ctx, summary }))
     }
 
     function ChannelsPage(props) {
@@ -6058,6 +6342,25 @@ function sameChannelTransport(left, right) {
       // 模型开关一个都不动 —— 收起一张卡不等于退出登录。
       const [hiddenChannels, setHiddenChannels] = useState(undefined)
       const [adding, setAdding] = useState(false)
+      // 左侧栏入口开关：偏好存插件设置，改完立刻反映到侧栏。
+      const [sidebarEntry, setSidebarEntry] = useState(true)
+      useEffect(() => {
+        let alive = true
+        api('/summary')
+          .then(data => { if (!alive) return; const want = data?.settings?.sidebarEntry !== false; setSidebarEntry(want); syncOfmSidebarEntry(want) })
+          .catch(() => { /* 读不到就按默认开 */ })
+        return () => { alive = false }
+      }, [])
+      const toggleSidebarEntry = useCallback(() => {
+        const next = !sidebarEntry
+        setSidebarEntry(next)
+        syncOfmSidebarEntry(next)
+        void post('/settings', { sidebarEntry: next }, 8_000).catch(error => {
+          setSidebarEntry(!next)
+          syncOfmSidebarEntry(!next)
+          showToast({ title: t('settings.failed'), body: String(error?.message ?? error).slice(0, 120), tone: 'warn' })
+        })
+      }, [sidebarEntry, t])
 
       // 账号导入导出：把「索引 + 凭据」打成一份 JSON，换机器不用重新登录十几家。
       // 导出文件里是明文凭据 —— 那一行提示就是给这件事看的。
@@ -6266,12 +6569,16 @@ function sameChannelTransport(left, right) {
             onChange: event => { void importAccounts(event) },
           }),
           h('span', { className: 'ofm_note' }, t('acct.hint'))),
+        h(ModelSyncButton, { t }),
+        h('div', { className: 'ofm_row' },
+          h(Switch, { checked: sidebarEntry, label: t('sidebar.entry'), onChange: toggleSidebarEntry }),
+          h('span', { className: 'ofm_note' }, t('sidebar.entryHint'))),
         failed ? h('div', { className: 'ofm_callout ofm_error' },
           h('div', null, t('chan.pack.failed').replace('{reason}', pack.error ?? ''), h('div', { className: 'ofm_note' }, t('chan.pack.hint')))) : null,
         !available ? h('div', { className: 'ofm_callout' }, h('div', null, t('chan.rpc.unavailable'))) : null,
         !ready && available ? h('div', { className: 'ofm_chanwrap' },
           [0, 1, 2].map(index => h('div', { className: 'ofm_skel', key: index, style: { minHeight: 168 } }))) : null,
-        ready ? h('div', { className: 'ofm_chanwrap' }, [hidden.includes('mimo') ? null : h(MiMoCard, { key: 'mimo', t, onRemove }), hidden.includes('cli-lane') ? null : h(CliLaneCard, { key: 'cli-lane', t, onRemove }), h(GatewayCard, { key: 'gateway', t, rpc: available ? rpc : null }), h(ChanRelayCard, { key: 'chan-relay', t }), h(ResignCard, { key: 'resign', t }), h(ModelSyncCard, { key: 'model-sync', t }), hidden.includes('doubao') ? null : h(ChannelCard, { key: 'doubao', channel: DOUBAO_CHANNEL, status: doubaoStatus, rpc: doubaoRpc, t, onError, onChanged, onRemove }), ...filledProviders.map(channel => h(ChannelCard, {
+        ready ? h('div', { className: 'ofm_chanwrap' }, [hidden.includes('mimo') ? null : h(MiMoCard, { key: 'mimo', t, onRemove }), hidden.includes('cli-lane') ? null : h(CliLaneCard, { key: 'cli-lane', t, onRemove }), h(GatewayCard, { key: 'gateway', t, rpc: available ? rpc : null }), hidden.includes('doubao') ? null : h(ChannelCard, { key: 'doubao', channel: DOUBAO_CHANNEL, status: doubaoStatus, rpc: doubaoRpc, t, onError, onChanged, onRemove }), ...filledProviders.map(channel => h(ChannelCard, {
           key: channel.id,
           channel,
           status: statuses?.[channel.id],
@@ -6852,15 +7159,31 @@ function sameChannelTransport(left, right) {
         }
         head.setAttribute('aria-expanded', card.getAttribute(FLAG) === 'false' ? 'true' : 'false')
       }
+      // 侧边栏里没有「收起」这件事：那里是随时瞄一眼的地方，一张卡被点成一行
+      // 就只剩个名字，反而要多点一次才看得回内容。设置页仍然保留收起（那是一张
+      // 十几张卡的长名单，收起来才好找）。
+      const inSidebar = card => card.closest('.ofm_side') !== null
       const mark = () => {
         try {
           for (const card of document.querySelectorAll('.ofm_chan')) {
+            if (inSidebar(card)) {
+              // 侧栏：清掉收起标记，顺手摘掉当初为了「可点击」加的 role/tabindex
+              if (card.hasAttribute(FLAG)) card.removeAttribute(FLAG)
+              const head = card.querySelector(':scope > .ofm_chanhead')
+              if (head !== null && head.getAttribute('role') === 'button') {
+                head.removeAttribute('role')
+                head.removeAttribute('tabindex')
+                head.removeAttribute('aria-expanded')
+              }
+              continue
+            }
             if (!card.hasAttribute(FLAG)) card.setAttribute(FLAG, 'true')
             sync(card)
           }
         } catch { /* DOM not ready */ }
       }
       const toggle = card => {
+        if (inSidebar(card)) return
         card.setAttribute(FLAG, card.getAttribute(FLAG) === 'true' ? 'false' : 'true')
         sync(card)
       }
@@ -7036,6 +7359,49 @@ function sameChannelTransport(left, right) {
         console.error('[get-it-for-free] credits slot registration failed:', error)
       }
 
+
+
+      // 侧边栏入口：座位到了先按当前偏好注册，之后靠 syncOfmSidebarEntry 开关。
+      // 注册失败要吞掉，不能影响别的插件的槽位。
+      try {
+        ctx.slots.inject('sidebar.panellist', () => {
+          ofmSidebar.ctx = ctx
+          ofmSidebar.seat = true
+          syncOfmSidebarEntry(ofmSidebar.want)
+          return () => {
+            ofmSidebar.seat = false
+            ofmSidebar.ctx = null
+            if (ofmSidebar.dispose !== null) {
+              ofmSidebar.dispose()
+              ofmSidebar.dispose = null
+            }
+          }
+        })
+      } catch (error) {
+        console.error('[get-it-for-free] sidebar.panellist registration failed:', error)
+      }
+      try {
+        ctx.slots.inject('main', () => ctx.slots.register({
+          name: 'main',
+          key: 'get-it-for-free',
+          locale: NS,
+        }, props => h(SidebarPage, { ...props, t: props?.t ?? t, ctx })))
+      } catch (error) {
+        console.error('[get-it-for-free] main slot registration failed:', error)
+      }
+      // 导航图标：不注册这一项，宿主就会发一个默认齿轮。
+      try {
+        ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
+          name: 'settings.section.icon',
+          id: 'get-it-for-free',
+          order: 25,
+          label: () => (String(document?.documentElement?.lang ?? '').toLowerCase().startsWith('zh') ? '免费渠道' : 'Free Channels'),
+        }, SettingsSectionIcon))
+      } catch (error) {
+        console.error('[get-it-for-free] settings icon registration failed:', error)
+      }
+
+      // 设置页里的入口始终保留：侧边栏那个图标是可选的，配置面板不是。
       ctx.slots.inject('settings.section', () => ctx.slots.register({
         name: 'settings.section',
         id: 'get-it-for-free',

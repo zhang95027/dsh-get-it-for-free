@@ -30,6 +30,8 @@
 
 ## 3. 华为云 × bili —— 结论与取舍
 
+> **已移除**：这段的两个模块 `src/bili-config.js` / `src/resign-bridge.js` 与设置页的「签名中转」卡一并删掉了。理由：不装 bili 时它毫无作用；装了 bili 时唯一正确的组合是「原样放行」，而那只值手动改一次 JSON，不值得常驻一张卡 + 一个启动期写别人配置文件的副作用。下面的记录保留作背景。
+
 bili 的契约：签过名的请求要么「重签后压缩」，要么「字节原样放行（passthrough）」。CodeArts 走 SDK-HMAC-SHA256，签名盖住 body。
 
 - 重签这条路实测必挂：bili 的 resigner 会把 path 补成以 `/` 结尾、并对部分模型加 `maas_type: benefit` 头，前者签名对不上，后者直接 404。
